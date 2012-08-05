@@ -1,7 +1,0 @@
-{
-    "name": "bedrock",
-    "version": "1.0.0",
-    "author": "Your Name",
-    "description": "A simple app.",
-    "main": "./app.js"
-}
