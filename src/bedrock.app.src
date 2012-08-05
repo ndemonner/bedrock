@@ -1,6 +1,6 @@
 {application, bedrock,
  [
-  {description, ""},
+  {description, "Rock-solid remote data storage for apps."},
   {vsn, "0.0.1"},
   {registered, []},
   {applications, [

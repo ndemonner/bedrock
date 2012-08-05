@@ -16,11 +16,15 @@
 %% ===================================================================
 
 start_link() ->
-    supervisor:start_link({local, ?MODULE}, ?MODULE, []).
+  supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 %% ===================================================================
 %% Supervisor callbacks
 %% ===================================================================
 
 init([]) ->
-    {ok, { {one_for_one, 5, 10}, []} }.
+  Ranch = ranch:child_spec(echo, 100,
+    ranch_tcp, [{port, 5123}],
+    bedrock_protocol, [{log, "echo.log"}]
+  ),
+  {ok, { {one_for_one, 5, 10}, [Ranch]} }.
