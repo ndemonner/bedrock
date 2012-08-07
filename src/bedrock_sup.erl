@@ -23,8 +23,15 @@ start_link() ->
 %% ===================================================================
 
 init([]) ->
-  Ranch = ranch:child_spec(echo, 100,
-    ranch_tcp, [{port, 5123}],
-    bedrock_protocol, [{log, "echo.log"}]
+  Dispatch = [
+    {'_', [
+        {'_', bedrock_handler, []}
+    ]}
+  ],
+
+  Cowboy = cowboy:child_spec(bedrock_cowboy, 1024,
+    cowboy_tcp_transport, [{port, 8080}],
+    cowboy_http_protocol, [{dispatch, Dispatch}, {log, "bedrock_cowboy.log"}]
   ),
-  {ok, { {one_for_one, 5, 10}, [Ranch]} }.
+
+  {ok, { {one_for_one, 5, 10}, [Cowboy]} }.
