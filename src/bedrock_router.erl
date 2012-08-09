@@ -29,12 +29,16 @@ start_link() ->
 init(Args) ->
   {ok, Args}.
 
+handle_call({request, RPC}, _From, State) ->
+  Reply = route(RPC),
+  {reply, Reply, State, hibernate};
+
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
 
-handle_call({route, Msg}, _From, State) ->
-  Reply = route(Msg);
-  {reply, Reply, State}.
+handle_cast({notify, RPC}, State) ->
+  route(RPC),
+  {noreply, State, hibernate};
 
 handle_cast(_Msg, State) ->
   {noreply, State}.
@@ -52,5 +56,6 @@ code_change(_OldVsn, State, _Extra) ->
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
 
-route(Msg) ->
-  undefined.
+route(RPC) ->
+  [{service, Module}, {method, Function}, {args, Args}] = RPC,
+  erlang:apply("bedrock_"++Module++"_service", Function, Args).
