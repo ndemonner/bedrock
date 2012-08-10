@@ -3,13 +3,13 @@
 -export([websocket_init/3, websocket_handle/3,
   websocket_info/3, websocket_terminate/3]).
 
-init({tcp, http}, Req, Opts) ->
+init({tcp, http}, _Req, _Opts) ->
   {upgrade, protocol, cowboy_http_websocket}.
 
-websocket_init(TransportName, Req, _Opts) ->
+websocket_init(_TransportName, Req, _Opts) ->
   {ok, Req, undefined_state}.
 
-websocket_handle({text, Msg}, Req, State) ->
+websocket_handle({binary, Msg}, Req, State) ->
   {ok, Unpacked} = msgpack:unpack(Msg),
   [Type|_] = Unpacked,
   case Type of
@@ -21,7 +21,14 @@ websocket_handle({text, Msg}, Req, State) ->
       Reply = poolboy:transaction(router_pool, fun(Router) -> 
         gen_server:call(Router, {request, rpc_to_proplist(request, Unpacked)})
       end),
-      {reply, {text, msgpack:pack([1, Id, Reply])}, Req, State, hibernate};
+
+      NormalizedReply = case Reply of
+        {ok, Body}    -> [{<<"ok">>, true},  {<<"body">>, Body}];
+        {error, Body} -> [{<<"ok">>, false}, {<<"body">>, Body}]
+      end,
+
+      {ok, Packed} = msgpack:pack([1, Id, {NormalizedReply}]),
+      {reply, {binary, Packed}, Req, State, hibernate};
     2 ->
       %% Fire and forget call, so don't send any reply. Do the call,
       %% and move on.
@@ -29,7 +36,7 @@ websocket_handle({text, Msg}, Req, State) ->
         gen_server:cast(Router, {notify, rpc_to_proplist(notify, Unpacked)})
       end),
       {ok, Req, State, hibernate}
-  end,
+  end;
 
 websocket_handle(_Data, Req, State) ->
   {ok, Req, State, hibernate}.
@@ -42,10 +49,10 @@ websocket_terminate(_Reason, _Req, _State) ->
 
 rpc_to_proplist(request, Message) ->
   [_Type, _Id, ServiceAndMethod, Args] = Message,
-  [Service, Method] = string:tokens(ServiceMethod, "."),
+  [Service, Method] = string:tokens(binary_to_list(ServiceAndMethod), "."),
   [{service, Service}, {method, Method}, {args, Args}];
 
 rpc_to_proplist(notify, Message) ->
   [_, ServiceAndMethod, Args] = Message,
-  [Service, Method] = string:tokens(ServiceMethod, "."),
+  [Service, Method] = string:tokens(binary_to_list(ServiceAndMethod), "."),
   [{service, Service}, {method, Method}, {args, Args}].

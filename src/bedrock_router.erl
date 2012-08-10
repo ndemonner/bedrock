@@ -6,7 +6,7 @@
 %% API Function Exports
 %% ------------------------------------------------------------------
 
--export([start_link/0]).
+-export([start_link/1]).
 
 %% ------------------------------------------------------------------
 %% gen_server Function Exports
@@ -19,8 +19,8 @@
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
-start_link() ->
-  gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+start_link(Args) ->
+  gen_server:start_link(?MODULE, Args, []).
 
 %% ------------------------------------------------------------------
 %% gen_server Function Definitions
@@ -58,4 +58,4 @@ code_change(_OldVsn, State, _Extra) ->
 
 route(RPC) ->
   [{service, Module}, {method, Function}, {args, Args}] = RPC,
-  erlang:apply("bedrock_"++Module++"_service", Function, Args).
+  erlang:apply(list_to_atom("bedrock_"++Module++"_service"), list_to_atom(Function), Args).

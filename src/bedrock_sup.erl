@@ -23,6 +23,14 @@ start_link() ->
 %% ===================================================================
 
 init([]) ->
+  {ok, Pools} = application:get_env(bedrock, pools),
+  PoolSpecs = lists:map(fun({PoolName, PoolConfig}) ->
+      Args = [{name, {local, router_pool}},
+              {worker_module, bedrock_router}]
+              ++ PoolConfig,
+      poolboy:child_spec(PoolName, Args)
+  end, Pools),
+
   Dispatch = [
     {'_', [
         {'_', bedrock_handler, []}
@@ -34,4 +42,4 @@ init([]) ->
     cowboy_http_protocol, [{dispatch, Dispatch}, {log, "bedrock_cowboy.log"}]
   ),
 
-  {ok, { {one_for_one, 5, 10}, [Cowboy]} }.
+  {ok, { {one_for_one, 5, 10}, [Cowboy|PoolSpecs]} }.

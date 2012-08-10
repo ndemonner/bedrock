@@ -1,6 +1,10 @@
+erl_crash.dump
 .eunit
 deps
+log
+ebin
 priv
 *.o
 *.beam
 *.plt
+test-client/node_modules

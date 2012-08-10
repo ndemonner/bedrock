@@ -3,4 +3,4 @@
 
 %% Tomorrow: use application:vsn for the OTP version.
 version() ->
-  "0.0.1".
+  {ok, <<"0.0.1">>}.

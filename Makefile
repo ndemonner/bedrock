@@ -1,6 +1,6 @@
 REBAR := ./rebar
 
-.PHONY: all deps doc test clean release
+.PHONY: all deps doc test clean distclean release start testclient
 
 all: deps
 	$(REBAR) compile
@@ -18,7 +18,10 @@ distclean: clean
 	$(REBAR) delete-deps
 
 start: app
-	exec erl -args_file rel/files/vm.args -config rel/files/sys.config -pa $(PWD)/deps/*/ebin -pa $(PWD)/apps/*/ebin
+	exec erl -args_file rel/files/vm.args -config rel/files/sys.config -pa $(PWD)/deps/*/ebin -pa $(PWD)/ebin -s lager -s bedrock
 
 release: all
 	dialyzer --src src/*.erl deps/*/src/*.erl
+
+testclient: 
+	exec node test-client/app.js
