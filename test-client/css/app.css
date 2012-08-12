@@ -14,3 +14,7 @@
 .container-fluid > .row-fluid > div > p > span { 
   font-weight:bold;
 }
+
+.header {
+  text-align: center;
+}

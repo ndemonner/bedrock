@@ -11,8 +11,7 @@
   {env, [
       {pools, [
           {router_pool, [
-              {size, 10},
-              {max_overflow, 20}
+              {size, 40}
           ]}
       ]}
   ]}

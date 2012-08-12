@@ -3,7 +3,6 @@ erl_crash.dump
 deps
 log
 ebin
-priv
 *.o
 *.beam
 *.plt

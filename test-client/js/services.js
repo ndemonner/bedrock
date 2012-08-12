@@ -39,7 +39,7 @@ angular.module('btc.services', [])
             deferred.resolve(reply.body);
           }
           else {
-            deferred.resolve(reply.body);
+            deferred.reject(reply.body);
           }
         });
       }
