@@ -7,19 +7,19 @@ init({tcp, http}, _Req, _Opts) ->
   {upgrade, protocol, cowboy_http_websocket}.
 
 websocket_init(_TransportName, Req, _Opts) ->
-  {ok, Req, undefined_state}.
+  {ok, Req, [{authenticated, false}]}.
 
 websocket_handle({binary, Msg}, Req, State) ->
   poolboy:transaction(router_pool, fun(Router) -> 
-    gen_server:cast(Router, {handle, Msg, self()})
+    gen_server:cast(Router, {handle, Msg, self(), State})
   end),
   {ok, Req, State, hibernate};
 
 websocket_handle(_Data, Req, State) ->
   {ok, Req, State, hibernate}.
 
-websocket_info({reply, Msg}, Req, State) ->
-  {reply, {binary, Msg}, Req, State, hibernate};
+websocket_info({reply, Msg, NewState}, Req, _State) ->
+  {reply, {binary, Msg}, Req, NewState, hibernate};
 
 websocket_info(_Msg, Req, State) ->
   {ok, Req, State, hibernate}.

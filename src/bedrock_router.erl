@@ -26,13 +26,13 @@ start_link(Args) ->
 %% gen_server Function Definitions
 %% ------------------------------------------------------------------
 
-init(Args) ->
-  {ok, Args}.
+init(_Args) ->
+  {ok, undefined}.
 
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
 
-handle_cast({handle, Msg, Pid}, State) ->
+handle_cast({handle, Msg, Pid, ConnectionState}, State) ->
   {ok, Unpacked} = msgpack:unpack(Msg),
   [Type|_] = Unpacked,
   case Type of
@@ -41,17 +41,19 @@ handle_cast({handle, Msg, Pid}, State) ->
       %% and after it's been routed and answered we pack it
       %% back up and send it on its way.
       [_,Id,_,_] = Unpacked,
-      Response = route(rpc_to_proplist(request, Unpacked)),
+      Response = route(rpc_to_proplist(request, Unpacked), ConnectionState),
+      {_, _, RetState} = Response,
 
       NormalizedResponse = case Response of
-        {ok, Body}    -> [{<<"ok">>, true},  {<<"body">>, Body}];
-        {error, Body} -> [{<<"ok">>, false}, {<<"body">>, Body}]
+        {ok, _}          -> [{<<"ok">>, true},  {<<"body">>, <<"ok">>}];
+        {ok, Body, _}    -> [{<<"ok">>, true},  {<<"body">>, Body}];
+        {error, Body, _} -> [{<<"ok">>, false}, {<<"body">>, Body}]
       end,
 
       {ok, Packed} = msgpack:pack([1, Id, {NormalizedResponse}]),
-      Pid ! {reply, Packed};
+      Pid ! {reply, Packed, RetState};
     2 ->
-      route(rpc_to_proplist(notify, Unpacked))
+      route(rpc_to_proplist(notify, Unpacked), ConnectionState)
   end,
   {noreply, State, hibernate};
 
@@ -71,9 +73,9 @@ code_change(_OldVsn, State, _Extra) ->
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
 
-route(RPC) ->
+route(RPC, State) ->
   [{service, Module}, {method, Function}, {args, Args}] = RPC,
-  erlang:apply(list_to_atom("bedrock_"++Module++"_interface"), list_to_atom(Function), Args).
+  erlang:apply(list_to_atom("bedrock_"++Module++"_interface"), list_to_atom(Function), Args++[State]).
 
 rpc_to_proplist(request, Message) ->
   [_Type, _Id, ServiceAndMethod, Args] = Message,
