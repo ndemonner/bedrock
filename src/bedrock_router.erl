@@ -73,7 +73,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 route(RPC) ->
   [{service, Module}, {method, Function}, {args, Args}] = RPC,
-  erlang:apply(list_to_atom("bedrock_"++Module++"_service"), list_to_atom(Function), Args).
+  erlang:apply(list_to_atom("bedrock_"++Module++"_interface"), list_to_atom(Function), Args).
 
 rpc_to_proplist(request, Message) ->
   [_Type, _Id, ServiceAndMethod, Args] = Message,

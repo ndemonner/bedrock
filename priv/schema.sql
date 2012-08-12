@@ -108,20 +108,34 @@ CREATE INDEX app_access_grants_key_index ON application_access_grants USING hash
 
 
 -----------------------------------------------------------------------------------------------------
+-- SERVICES -----------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------
+CREATE TABLE services (
+  id                    serial primary key,
+  created               timestamp                                NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated               timestamp                                NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  name                  varchar(255)                             NOT NULL UNIQUE
+);
+-----------------------------------------------------------------------------------------------------
+-- /SERVICES ----------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------
+
+
+-----------------------------------------------------------------------------------------------------
 -- USAGE CONSTRAINTS --------------------------------------------------------------------------------
 -----------------------------------------------------------------------------------------------------
-CREATE TYPE service_type AS ENUM ('primary', 'pubsub', 'voice', 'hooks');
 CREATE TABLE usage_constraints (
   id                    serial primary key,
   created               timestamp                                NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated               timestamp                                NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  service               service_type                             NOT NULL,
+  service_id            integer REFERENCES services (id)         NOT NULL,
   level                 int                                      NOT NULL,
   capacity              bigint                                   NOT NULL,
   description           text                                     NOT NULL,
-  UNIQUE (service, capacity),
-  UNIQUE (service, level)
+  UNIQUE (service_id, capacity),
+  UNIQUE (service_id, level)
 );
+CREATE INDEX uc_service_id_index ON usage_constraints USING hash (service_id);
 -----------------------------------------------------------------------------------------------------
 -- /USAGE CONSTRAINTS -------------------------------------------------------------------------------
 -----------------------------------------------------------------------------------------------------
@@ -160,3 +174,18 @@ CREATE INDEX logged_actions_actor_id ON logged_actions USING hash (actor_id);
 -----------------------------------------------------------------------------------------------------
 -- /LOGGED ACTIONS ----------------------------------------------------------------------------------
 -----------------------------------------------------------------------------------------------------
+
+
+-----------------------------------------------------------------------------------------------------
+-- DATA SEED ----------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------
+INSERT INTO administrators (email, password) 
+  VALUES ('nick@demonner.net', '$2a$12$X2mAKZYOY0902KMK9BScc.TVW7aOduZmvlmeq6aLXC38ZiUB3Gthi');
+
+INSERT INTO services (name) VALUES ('base');
+INSERT INTO services (name) VALUES ('pubsub');
+INSERT INTO services (name) VALUES ('hooks');
+-----------------------------------------------------------------------------------------------------
+-- /DATA SEED ---------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------
+
