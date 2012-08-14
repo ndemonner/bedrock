@@ -32,7 +32,7 @@ init(_Args) ->
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
 
-handle_cast({handle, Msg, Pid, ConnectionState}, State) ->
+handle_cast({handle, Msg, ConnectionState}, State) ->
   {ok, Unpacked} = msgpack:unpack(Msg),
   [Type|_] = Unpacked,
   case Type of
@@ -46,12 +46,14 @@ handle_cast({handle, Msg, Pid, ConnectionState}, State) ->
 
       NormalizedResponse = case Response of
         {ok, _}          -> [{<<"ok">>, true},  {<<"body">>, <<"ok">>}];
-        {ok, Body, _}    -> [{<<"ok">>, true},  {<<"body">>, Body}];
-        {error, Body, _} -> [{<<"ok">>, false}, {<<"body">>, Body}]
+        {ok, Body, _}    -> [{<<"ok">>, true},  {<<"body">>, maybe_wrap(Body)}];
+        {error, Body, _} -> [{<<"ok">>, false}, {<<"body">>, maybe_wrap(Body)}]
       end,
 
       {ok, Packed} = msgpack:pack([1, Id, {NormalizedResponse}]),
-      Pid ! {reply, Packed, RetState};
+
+      Pid = proplists:get_value(pid, ConnectionState),
+      Pid ! {send, Packed, RetState};
     2 ->
       route(rpc_to_proplist(notify, Unpacked), ConnectionState)
   end,
@@ -74,8 +76,15 @@ code_change(_OldVsn, State, _Extra) ->
 %% ------------------------------------------------------------------
 
 route(RPC, State) ->
-  [{service, Module}, {method, Function}, {args, Args}] = RPC,
-  erlang:apply(list_to_atom("bedrock_"++Module++"_interface"), list_to_atom(Function), Args++[State]).
+  [{service, Module}, {method, Method}, {args, Args}] = RPC,
+  Interface = list_to_atom("bedrock_"++Module++"_interface"),
+  Function  = list_to_atom(Method),
+  Params    = [maybe_proplist(Arg) || Arg <- Args]++[State],
+  try erlang:apply(Interface, Function, Params) of
+    Anything -> Anything
+  catch
+    _Type:_Message -> {error, bad_interface_message(), State}
+  end.
 
 rpc_to_proplist(request, Message) ->
   [_Type, _Id, ServiceAndMethod, Args] = Message,
@@ -86,3 +95,22 @@ rpc_to_proplist(notify, Message) ->
   [_, ServiceAndMethod, Args] = Message,
   [Service, Method] = string:tokens(binary_to_list(ServiceAndMethod), "."),
   [{service, Service}, {method, Method}, {args, Args}].
+
+bad_interface_message() ->
+  <<"No such interface call! You may have supplied the wrong number of arguments.">>.
+
+maybe_proplist(Arg) ->
+  case Arg of
+    {[{_,_}|_]} -> 
+      {RealArg} = Arg,
+      RealArg;
+    _ -> Arg
+  end.
+
+maybe_wrap([{_,_}|_] = Thing)  -> {[maybe_wrap(Tuple) || Tuple <- Thing]};
+maybe_wrap([_|_] = List)       -> [maybe_wrap(Thing) || Thing <- List];
+maybe_wrap({_,_} = Thing)      -> {maybe_wrap(element(1, Thing)), maybe_wrap(element(2, Thing))};
+maybe_wrap(Thing)              -> Thing.
+
+
+

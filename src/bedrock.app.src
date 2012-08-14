@@ -21,6 +21,13 @@
         {module, bedrock_pg},
         {hostname, "pg.bedrock.io"},
         {database, "bedrock"}
+      ]},
+      {redis, [
+        {size, 10},
+        {max_overflow, 20}
+      ], [
+        {module, bedrock_redis},
+        {hostname, "redis.bedrock.io"}
       ]}
     ]}
   ]}

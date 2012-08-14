@@ -73,17 +73,19 @@ init(Args) ->
 handle_call({get, Table, Id}, _From, State) ->
   Connection              = proplists:get_value(connection, State),
   Statement               = io_lib:format("SELECT * FROM ~s WHERE id = $1", [Table]),
-  {ok, RawColumns, [Row]} = pgsql:equery(Connection, Statement, [Id]),
+  case pgsql:equery(Connection, Statement, [Id]) of
+    {ok, RawColumns, [Row]} -> 
+      % Extract the column names into a list
+      Columns = [Column || {column, Column, _, _, _, _} <- RawColumns],
+      Values = tuple_to_list(Row),
 
-  % Extract the column names into a list
-  Columns = [Column || {column, Column, _, _, _, _} <- RawColumns],
-  Values = tuple_to_list(Row),
+      % Zip them together
+      ZippedList = lists:zip(Columns, Values),
+      Result     = finalize(ZippedList),
+      {reply, {ok, Result}, State};
 
-  % Zip them together
-  ZippedList = lists:zip(Columns, Values),
-  Result     = finalize(ZippedList),
-
-  {reply, {ok, Result}, State};
+    {ok, RawColumns, []} -> {reply, {error, notfound}, State}
+  end;
 
 handle_call({get_all, Table}, _From, State) ->
   Connection              = proplists:get_value(connection, State),
