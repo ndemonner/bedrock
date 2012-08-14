@@ -13,7 +13,8 @@
   find/3,
   insert/2, 
   update/3, 
-  delete/2
+  delete/2,
+  delete_all/1
 ]).
 
 %% ------------------------------------------------------------------
@@ -60,6 +61,11 @@ delete(Table, Id) ->
     gen_server:call(Worker, {delete, Table, Id})
   end).
 
+delete_all(Table) -> 
+  poolboy:transaction(pg, fun(Worker) ->
+    gen_server:call(Worker, {delete_all, Table})
+  end).
+
 %% ------------------------------------------------------------------
 %% gen_server Function Definitions
 %% ------------------------------------------------------------------
@@ -84,7 +90,7 @@ handle_call({get, Table, Id}, _From, State) ->
       Result     = finalize(ZippedList),
       {reply, {ok, Result}, State};
 
-    {ok, RawColumns, []} -> {reply, {error, notfound}, State}
+    {ok, _RawColumns, []} -> {reply, {error, notfound}, State}
   end;
 
 handle_call({get_all, Table}, _From, State) ->
@@ -180,6 +186,13 @@ handle_call({delete, Table, Id}, _From, State) ->
   Connection   = proplists:get_value(connection, State),
   StatementFmt = "DELETE FROM ~s WHERE id = ~w",
   Statement    = io_lib:format(StatementFmt, [Table, Id]),
+  {ok, _}      = pgsql:equery(Connection, Statement, []),
+  {reply, ok, State};
+
+handle_call({delete_all, Table}, _From, State) ->
+  Connection   = proplists:get_value(connection, State),
+  StatementFmt = "DELETE FROM ~s",
+  Statement    = io_lib:format(StatementFmt, [Table]),
   {ok, _}      = pgsql:equery(Connection, Statement, []),
   {reply, ok, State};
 

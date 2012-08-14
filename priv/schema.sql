@@ -43,7 +43,7 @@ CREATE TABLE applications (
   updated               timestamp                                NOT NULL DEFAULT CURRENT_TIMESTAMP,
   name                  varchar(255)                             NOT NULL,
   usage                 bigint                                   NOT NULL DEFAULT 0,
-  developer_id          integer REFERENCES developers (id)       NOT NULL,
+  developer_id          integer REFERENCES developers (id)       ON DELETE CASCADE NOT NULL,
   UNIQUE (name, developer_id)
 );
 CREATE INDEX applications_developer_id_index ON applications USING hash (developer_id);
@@ -61,7 +61,7 @@ CREATE TABLE users (
   updated               timestamp                                NOT NULL DEFAULT CURRENT_TIMESTAMP,
   email                 varchar(255)                             NOT NULL,
   password              varchar(255)                             NOT NULL,
-  application_id        integer REFERENCES applications (id)     NOT NULL,
+  application_id        integer REFERENCES applications (id)     ON DELETE CASCADE NOT NULL,
   UNIQUE (email, application_id)
 );
 CREATE INDEX users_application_id_index ON users USING hash (application_id);
@@ -79,7 +79,7 @@ CREATE TABLE developer_access_grants (
   created               timestamp                                NOT NULL DEFAULT CURRENT_TIMESTAMP,
   name                  varchar(255)                             NOT NULL,
   key                   varchar(255)                             NOT NULL UNIQUE,
-  developer_id          integer REFERENCES developers (id)       NOT NULL,
+  developer_id          integer REFERENCES developers (id)       ON DELETE CASCADE NOT NULL,
   UNIQUE (name, developer_id)
 );
 CREATE INDEX developer_access_grants_dev_index ON developer_access_grants USING hash (developer_id);
@@ -97,7 +97,7 @@ CREATE TABLE application_access_grants (
   created               timestamp                                NOT NULL DEFAULT CURRENT_TIMESTAMP,
   name                  varchar(255)                             NOT NULL,
   key                   varchar(255)                             NOT NULL UNIQUE,
-  application_id        integer REFERENCES applications (id)     NOT NULL,
+  application_id        integer REFERENCES applications (id)     ON DELETE CASCADE NOT NULL,
   UNIQUE (name, application_id)
 );
 CREATE INDEX app_access_grants_app_index ON application_access_grants USING hash (application_id);
@@ -127,15 +127,15 @@ CREATE TABLE services (
 CREATE TABLE test_access_grants (
   id                    serial primary key,
   created               timestamp                                NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  service_id            integer REFERENCES services (id)         NOT NULL,
-  key                   varchar(255)                             NOT NULL UNIQUE,
+  service_id            integer REFERENCES services (id)         ON DELETE CASCADE NOT NULL,
+  key                   varchar(255)                             NOT NULL UNIQUE
 );
 CREATE INDEX test_access_grants_ser_index ON test_access_grants USING hash (service_id);
 CREATE INDEX test_access_grants_key_index ON test_access_grants USING hash (key);
 -----------------------------------------------------------------------------------------------------
--- /TEST ACCESS GRANTS ---------------------------------------------------------------------------
+-- /TEST ACCESS GRANTS ------------------------------------------------------------------------------
 -----------------------------------------------------------------------------------------------------
- 
+
 
 -----------------------------------------------------------------------------------------------------
 -- USAGE CONSTRAINTS --------------------------------------------------------------------------------
@@ -144,7 +144,7 @@ CREATE TABLE usage_constraints (
   id                    serial primary key,
   created               timestamp                                NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated               timestamp                                NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  service_id            integer REFERENCES services (id)         NOT NULL,
+  service_id            integer REFERENCES services (id)         ON DELETE CASCADE NOT NULL,
   level                 int                                      NOT NULL,
   capacity              bigint                                   NOT NULL,
   description           text                                     NOT NULL,
@@ -164,8 +164,8 @@ CREATE TABLE developer_usage_constraints (
   id                    serial primary key,
   created               timestamp                                 NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated               timestamp                                 NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  developer_id          integer REFERENCES developers (id)        NOT NULL,
-  usage_constraint_id   integer REFERENCES usage_constraints (id) NOT NULL
+  developer_id          integer REFERENCES developers (id)        ON DELETE CASCADE NOT NULL,
+  usage_constraint_id   integer REFERENCES usage_constraints (id) ON DELETE CASCADE NOT NULL
 );
 CREATE INDEX duc_developer_id ON developer_usage_constraints USING hash (developer_id);
 CREATE INDEX duc_uc_id ON developer_usage_constraints USING hash (usage_constraint_id);
@@ -183,9 +183,12 @@ CREATE TABLE logged_actions (
   created               timestamp                                NOT NULL DEFAULT CURRENT_TIMESTAMP,
   actor                 actor_type                               NOT NULL,
   actor_id              integer                                  NOT NULL,
-  description           varchar(255)                             NOT NULL
+  interface             varchar(255)                             NOT NULL,
+  method                varchar(255)                             NOT NULL,
+  args                  text                                     NOT NULL
 );
 CREATE INDEX logged_actions_actor ON logged_actions USING hash (actor);
+CREATE INDEX logged_actions_interface ON logged_actions USING hash (interface);
 CREATE INDEX logged_actions_actor_id ON logged_actions USING hash (actor_id);
 -----------------------------------------------------------------------------------------------------
 -- /LOGGED ACTIONS ----------------------------------------------------------------------------------
@@ -204,4 +207,3 @@ INSERT INTO services (name) VALUES ('hooks');
 -----------------------------------------------------------------------------------------------------
 -- /DATA SEED ---------------------------------------------------------------------------------------
 -----------------------------------------------------------------------------------------------------
-

@@ -45,9 +45,9 @@ handle_cast({handle, Msg, ConnectionState}, State) ->
       {_, _, RetState} = Response,
 
       NormalizedResponse = case Response of
-        {ok, _}          -> [{<<"ok">>, true},  {<<"body">>, <<"ok">>}];
-        {ok, Body, _}    -> [{<<"ok">>, true},  {<<"body">>, maybe_wrap(Body)}];
-        {error, Body, _} -> [{<<"ok">>, false}, {<<"body">>, maybe_wrap(Body)}]
+        {ok, undefined, _} -> [{<<"ok">>, true},  {<<"body">>, <<"ok">>}];
+        {ok, Body, _}      -> [{<<"ok">>, true},  {<<"body">>, maybe_wrap(Body)}];
+        {error, Body, _}   -> [{<<"ok">>, false}, {<<"body">>, maybe_wrap(Body)}]
       end,
 
       {ok, Packed} = msgpack:pack([1, Id, {NormalizedResponse}]),
@@ -83,7 +83,8 @@ route(RPC, State) ->
   try erlang:apply(Interface, Function, Params) of
     Anything -> Anything
   catch
-    _Type:_Message -> {error, bad_interface_message(), State}
+    throw:unauthorized -> {error, unauthorized_message(), State};
+    _:_                -> {error, bad_interface_message(), State}
   end.
 
 rpc_to_proplist(request, Message) ->
@@ -98,6 +99,9 @@ rpc_to_proplist(notify, Message) ->
 
 bad_interface_message() ->
   <<"No such interface call! You may have supplied the wrong number of arguments.">>.
+
+unauthorized_message() ->
+  <<"You are not authorized to perform that call. The attempt has been logged.">>.
 
 maybe_proplist(Arg) ->
   case Arg of

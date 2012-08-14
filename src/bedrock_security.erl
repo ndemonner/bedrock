@@ -1,9 +1,14 @@
 -module (bedrock_security).
--export ([identify/2, 
+-export ([
+  identify/2, 
   identify/3, 
   generate_uuid/0, 
   generate_key/1,
-  invalidate_key/1
+  invalidate_key/1,
+  log_action/5,
+  must_be_at_least/2,
+  must_have_access_to/3,
+  clear_logs/0
 ]).
   
 identify(admin, Key) ->
@@ -62,6 +67,110 @@ invalidate_key(Key) ->
 
 generate_uuid() ->
   base32:encode(uuid(), [lower, nopad]).
+
+log_action(admin, Who, Interface, Method, Args) ->
+  log_action(
+    <<"administrator">>,
+    proplists:get_value(<<"id">>, Who),
+    list_to_binary(atom_to_list(Interface)),
+    list_to_binary(atom_to_list(Method)),
+    list_to_binary(string:join(Args, ", "))
+  );
+
+log_action(developer, Who, Interface, Method, Args) ->
+  log_action(
+    <<"developer">>,
+    proplists:get_value(<<"id">>, Who),
+    list_to_binary(atom_to_list(Interface)),
+    list_to_binary(atom_to_list(Method)),
+    list_to_binary(string:join(Args, ", "))
+  );
+
+log_action(ActorType, Id, Interface, Method, Args) ->
+  Action = [
+    {<<"actor">>, ActorType},
+    {<<"actor_id">>, Id},
+    {<<"interface">>, Interface},
+    {<<"method">>, Method},
+    {<<"args">>, Args}
+  ],
+  bedrock_pg:insert('logged_actions', Action).
+
+must_be_at_least(admin, State) ->
+  case proplists:get_value(role, State) of
+    admin  -> ok;
+    _Other -> throw(unauthorized)
+  end;
+
+must_be_at_least(developer, State) ->
+  case proplists:get_value(role, State) of
+    admin     -> ok;
+    developer -> ok;
+    _Other    -> throw(unauthorized)
+  end.
+
+must_have_access_to(admin, Target, State) ->
+  [{<<"id">>, Id}|_] = proplists:get_value(identity, State),
+  case proplists:get_value(role, State) of
+    admin ->
+      case Id =:= proplists:get_value(<<"id">>, Target) of
+        true  -> ok;
+        false -> throw(unauthorized)
+      end;
+    _Other -> throw(unauthorized)
+  end;
+
+must_have_access_to(developer, Target, State) ->
+  [{<<"id">>, Id}|_] = proplists:get_value(identity, State),
+  case proplists:get_value(role, State) of
+    admin     -> ok;
+    developer ->
+      case Id =:= proplists:get_value(<<"id">>, Target) of
+        true  -> ok;
+        false -> throw(unauthorized)
+      end;
+    _Other -> throw(unauthorized)
+  end;
+
+must_have_access_to(application, Target, State) ->
+  [{<<"id">>, Id}|_] = proplists:get_value(identity, State),
+  case proplists:get_value(role, State) of
+    admin     -> ok;
+    developer ->
+      case Id =:= proplists:get_value(<<"developer_id">>, Target) of
+        true  -> ok;
+        false -> throw(unauthorized)
+      end;
+    application -> 
+      case Id =:= proplists:get_value(<<"id">>, Target) of
+        true  -> ok;
+        false -> throw(unauthorized)
+      end;
+    _Other -> throw(unauthorized)
+  end;
+
+must_have_access_to(user, Target, State) ->
+  [{<<"id">>, Id}|_] = proplists:get_value(identity, State),
+  case proplists:get_value(role, State) of
+    admin     -> ok;
+    developer ->
+      AppId = proplists:get_value(<<"application_id">>, Target),
+      {ok, Application} = bedrock_pg:get(<<"applications">>, AppId),
+      must_have_access_to(application, Application, State);      
+    application -> 
+      AppId = proplists:get_value(<<"application_id">>, Target),
+      {ok, Application} = bedrock_pg:get(<<"applications">>, AppId),
+      must_have_access_to(application, Application, State);
+    user ->   
+      case Id =:= proplists:get_value(<<"id">>, Target) of
+        true  -> ok;
+        false -> throw(unauthorized)
+      end;
+    _Other -> throw(unauthorized)
+  end.
+
+clear_logs() ->
+  bedrock_pg:delete_all(<<"logged_actions">>).
 
 uuid() ->
   random:seed(now()), 
