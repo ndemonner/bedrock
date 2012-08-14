@@ -1,18 +1,27 @@
-{application, bedrock,
- [
+{application, bedrock, [
   {description, "Rock-solid remote data storage for apps."},
   {vsn, "0.0.1"},
   {registered, []},
   {applications, [
-                  kernel,
-                  stdlib
-                 ]},
+    kernel,
+    stdlib
+  ]},
   {mod, { bedrock_app, []}},
   {env, [
-      {pools, [
-          {router_pool, [
-              {size, 40}
-          ]}
+    {pools, [
+      {router_pool, [
+        {size, 256}
+      ], [
+        {module, bedrock_router}
+      ]},
+      {pg, [
+        {size, 10},
+        {max_overflow, 20}
+      ], [
+        {module, bedrock_pg},
+        {hostname, "pg.bedrock.io"},
+        {database, "bedrock"}
       ]}
+    ]}
   ]}
- ]}.
+]}.

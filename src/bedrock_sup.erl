@@ -23,13 +23,12 @@ start_link() ->
 %% ===================================================================
 
 init([]) ->
-  {ok, Pools} = application:get_env(bedrock, pools),
-  PoolSpecs = lists:map(fun({PoolName, PoolConfig}) ->
-      Args = [{name, {local, router_pool}},
-              {worker_module, bedrock_router}]
-              ++ PoolConfig,
-      poolboy:child_spec(PoolName, Args)
-  end, Pools),
+    {ok, Pools} = application:get_env(bedrock, pools),
+    PoolSpecs = lists:map(fun({Name, SizeArgs, WorkerArgs}) ->
+        PoolArgs = [{name, {local, Name}},
+                    {worker_module, proplists:get_value(module, WorkerArgs)}] ++ SizeArgs,
+        poolboy:child_spec(Name, PoolArgs, WorkerArgs)
+    end, Pools),
 
   Dispatch = [
     {'_', [
