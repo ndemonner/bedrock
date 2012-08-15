@@ -10,7 +10,9 @@
 -export ([
   get/2, 
   get_all/1, 
+  get_all/2,
   find/3,
+  find/4,
   insert/2, 
   update/3, 
   delete/2,
@@ -41,9 +43,19 @@ get_all(Table) ->
     gen_server:call(Worker, {get_all, Table})
   end).
 
+get_all(Table, Conditions) -> 
+  poolboy:transaction(pg, fun(Worker) ->
+    gen_server:call(Worker, {get_all, Table, Conditions})
+  end).
+
 find(Table, Where, Params) -> 
   poolboy:transaction(pg, fun(Worker) ->
     gen_server:call(Worker, {find, Table, Where, Params})
+  end).
+
+find(Table, Where, Params, Conditions) -> 
+  poolboy:transaction(pg, fun(Worker) ->
+    gen_server:call(Worker, {find, Table, Where, Params, Conditions})
   end).
 
 insert(Table, Row) -> 
@@ -106,9 +118,35 @@ handle_call({get_all, Table}, _From, State) ->
 
   {reply, {ok, Results}, State};
 
+handle_call({get_all, Table, Conditions}, _From, State) ->
+  Connection              = proplists:get_value(connection, State),
+  Statement               = io_lib:format("SELECT * FROM ~s ~s", [Table, Conditions]),
+  {ok, RC, RR} = pgsql:equery(Connection, Statement, []),
+
+  Columns = [Column || {column, Column, _, _, _, _} <- RC],
+  Rows = [tuple_to_list(Row) || Row <- RR],
+
+  ZippedLists = [lists:zip(Columns, Row) || Row <- Rows],
+  Results = [finalize(ZL) || ZL <- ZippedLists],
+
+  {reply, {ok, Results}, State};
+
 handle_call({find, Table, Where, Params}, _From, State) ->
   Connection = proplists:get_value(connection, State),
   Statement  = io_lib:format("SELECT * FROM ~s WHERE ~s", [Table, Where]),
+  {ok, RC, RR} = pgsql:equery(Connection, Statement, Params),
+
+  Columns = [Column || {column, Column, _, _, _, _} <- RC],
+  Rows = [tuple_to_list(Row) || Row <- RR],
+
+  ZippedLists = [lists:zip(Columns, Row) || Row <- Rows],
+  Results = [finalize(ZL) || ZL <- ZippedLists],
+
+  {reply, {ok, Results}, State};
+
+handle_call({find, Table, Where, Params, Conditions}, _From, State) ->
+  Connection = proplists:get_value(connection, State),
+  Statement  = io_lib:format("SELECT * FROM ~s WHERE ~s ~s", [Table, Where, Conditions]),
   {ok, RC, RR} = pgsql:equery(Connection, Statement, Params),
 
   Columns = [Column || {column, Column, _, _, _, _} <- RC],
@@ -219,8 +257,8 @@ code_change(_OldVsn, State, _Extra) ->
 maybe_convert(Value) ->
   case Value of 
     {{Year,Month,Day},{Hour,Min,Sec}} -> 
-      UTCFormat = "~w-~2.2.0w-~2.2.0wT~2.2.0w:~2.2.0w:~fZ",
-      UTC = lists:flatten(io_lib:format(UTCFormat, [Year, Month, Day, Hour, Min, Sec])),
+      UTCFormat = "~w-~2.2.0w-~2.2.0wT~2.2.0w:~2.2.0w:~2.2.0wZ",
+      UTC = lists:flatten(io_lib:format(UTCFormat, [Year, Month, Day, Hour, Min, trunc(Sec)])),
       list_to_binary(UTC);
     Other -> Other
   end.

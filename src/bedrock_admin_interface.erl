@@ -14,9 +14,14 @@ sign_in(Credentials, State) ->
       Reply = [{<<"identity">>, Person}, {<<"key">>, Key}],
 
       bedrock_security:log_action(admin, Person, admin, sign_in, []),
+      
+      IdentityT = {identity, Person},
+      RoleT = {role, admin},
+      KeyT = {key, Key},
+      ServT = {available_services, ['*']},
 
-      {ok, Reply, [{identity, Person}, {role, admin}, {key, Key} | State]};
-    error       -> {error, <<"You must enter a valid set of credentials.">>, State}
+      {ok, Reply, [IdentityT, RoleT, KeyT, ServT | State]};
+    error -> {error, <<"You must enter a valid set of credentials.">>, State}
   end.
 
 sign_out(State) ->
@@ -35,7 +40,13 @@ establish_identity(Key, State) ->
   case bedrock_security:identify(admin, Key) of
     {ok, Person} ->
       Reply = [{<<"identity">>, Person}, {<<"key">>, Key}],
-      {ok, Reply, [{identity, Person}, {role, admin} | State]};
+
+      IdentityT = {identity, Person},
+      RoleT = {role, admin},
+      KeyT = {key, Key},
+      ServT = {available_services, ['*']},
+
+      {ok, Reply, [IdentityT, RoleT, KeyT, ServT | State]};
     error -> {error, <<"You provided an invalid key.">>, State}
   end.
 

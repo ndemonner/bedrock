@@ -10,7 +10,9 @@
 %% ===================================================================
 
 start(_StartType, _StartArgs) ->
-  bedrock_sup:start_link().
+  Ret = bedrock_sup:start_link(),
+  bedrock_redis:set(<<"active-persons">>, 0),
+  Ret.
 
 stop(_State) ->
   ok.

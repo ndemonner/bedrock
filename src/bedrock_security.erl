@@ -8,6 +8,7 @@
   log_action/5,
   must_be_at_least/2,
   must_have_access_to/3,
+  must_have_service/2,
   clear_logs/0
 ]).
   
@@ -25,8 +26,8 @@ identify(PersonType, [{<<"email">>, Email}, {<<"password">>, Password}]) ->
 
 identify(Table, Key) ->
   case bedrock_redis:get(Key) of
-    undefined -> error;
-    Id        ->
+    {ok, undefined} -> error;
+    {ok, Id}        ->
       case bedrock_pg:get(Table, Id) of
         {ok, Person} -> {ok, Person};
         {error, notfound} -> error
@@ -72,6 +73,7 @@ log_action(admin, Who, Interface, Method, Args) ->
   log_action(
     <<"administrator">>,
     proplists:get_value(<<"id">>, Who),
+    proplists:get_value(<<"email">>, Who),
     list_to_binary(atom_to_list(Interface)),
     list_to_binary(atom_to_list(Method)),
     list_to_binary(string:join(Args, ", "))
@@ -81,15 +83,17 @@ log_action(developer, Who, Interface, Method, Args) ->
   log_action(
     <<"developer">>,
     proplists:get_value(<<"id">>, Who),
+    proplists:get_value(<<"email">>, Who),
     list_to_binary(atom_to_list(Interface)),
     list_to_binary(atom_to_list(Method)),
     list_to_binary(string:join(Args, ", "))
-  );
+  ).
 
-log_action(ActorType, Id, Interface, Method, Args) ->
+log_action(ActorType, Id, Email, Interface, Method, Args) ->
   Action = [
     {<<"actor">>, ActorType},
     {<<"actor_id">>, Id},
+    {<<"actor_email">>, Email},
     {<<"interface">>, Interface},
     {<<"method">>, Method},
     {<<"args">>, Args}
@@ -167,6 +171,16 @@ must_have_access_to(user, Target, State) ->
         false -> throw(unauthorized)
       end;
     _Other -> throw(unauthorized)
+  end.
+
+must_have_service(Service, State) ->
+  Services = proplists:get_value(available_services, State),
+  case Services of
+    ['*'] -> ok;
+    _List -> case lists:member(Service, Services) of
+      true  -> ok;
+      false -> throw(unavailable)
+    end
   end.
 
 clear_logs() ->

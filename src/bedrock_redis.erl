@@ -11,7 +11,10 @@
   get/1, 
   set/2, 
   expire/2,
-  delete/1
+  delete/1,
+  incr/1,
+  decr/1,
+  publish/2
 ]).
 
 %% ------------------------------------------------------------------
@@ -48,6 +51,21 @@ delete(Key) ->
     gen_server:call(Worker, {delete, Key})
   end).
 
+incr(Key) ->
+  poolboy:transaction(redis, fun(Worker) ->
+    gen_server:call(Worker, {incr, Key})
+  end).
+
+decr(Key) ->
+  poolboy:transaction(redis, fun(Worker) ->
+    gen_server:call(Worker, {decr, Key})
+  end).
+
+publish(Channel, Message) ->
+  poolboy:transaction(redis, fun(Worker) ->
+    gen_server:call(Worker, {publish, Channel, Message})
+  end).
+
 %% ------------------------------------------------------------------
 %% gen_server Function Definitions
 %% ------------------------------------------------------------------
@@ -67,7 +85,7 @@ handle_call({get, Key}, _From, State) ->
     _:_ -> Result
   end,
 
-  {reply, Result1, State};
+  {reply, {ok, Result1}, State};
 
 handle_call({set, Key, Value}, _From, State) ->
   Connection = proplists:get_value(connection, State),
@@ -82,6 +100,22 @@ handle_call({expire, Key, Time}, _From, State) ->
 handle_call({delete, Key}, _From, State) ->
   Connection = proplists:get_value(connection, State),
   {ok, Result} = eredis:q(Connection, ["DEL", Key]),
+  {reply, Result, State};
+
+handle_call({incr, Key}, _From, State) ->
+  Connection = proplists:get_value(connection, State),
+  {ok, Result} = eredis:q(Connection, ["INCR", Key]),
+  {reply, Result, State};
+
+handle_call({decr, Key}, _From, State) ->
+  Connection = proplists:get_value(connection, State),
+  {ok, Result} = eredis:q(Connection, ["DECR", Key]),
+  {reply, Result, State};
+
+handle_call({publish, Channel, Message}, _From, State) ->
+  Connection = proplists:get_value(connection, State),
+  {ok, Result} = eredis:q(Connection, ["PUBLISH", Channel, Message]),
+
   {reply, Result, State};
   
 handle_call(_Request, _From, State) ->

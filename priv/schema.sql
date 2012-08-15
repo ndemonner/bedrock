@@ -183,6 +183,7 @@ CREATE TABLE logged_actions (
   created               timestamp                                NOT NULL DEFAULT CURRENT_TIMESTAMP,
   actor                 actor_type                               NOT NULL,
   actor_id              integer                                  NOT NULL,
+  actor_email           varchar(255)                             NOT NULL,
   interface             varchar(255)                             NOT NULL,
   method                varchar(255)                             NOT NULL,
   args                  text                                     NOT NULL
@@ -190,6 +191,7 @@ CREATE TABLE logged_actions (
 CREATE INDEX logged_actions_actor ON logged_actions USING hash (actor);
 CREATE INDEX logged_actions_interface ON logged_actions USING hash (interface);
 CREATE INDEX logged_actions_actor_id ON logged_actions USING hash (actor_id);
+CREATE INDEX logged_actions_created ON logged_actions (created);
 -----------------------------------------------------------------------------------------------------
 -- /LOGGED ACTIONS ----------------------------------------------------------------------------------
 -----------------------------------------------------------------------------------------------------
@@ -202,7 +204,7 @@ INSERT INTO administrators (email, password)
   VALUES ('nick@demonner.net', '$2a$12$X2mAKZYOY0902KMK9BScc.TVW7aOduZmvlmeq6aLXC38ZiUB3Gthi');
 
 INSERT INTO services (name) VALUES ('base');
-INSERT INTO services (name) VALUES ('pubsub');
+INSERT INTO services (name) VALUES ('messaging');
 INSERT INTO services (name) VALUES ('hooks');
 -----------------------------------------------------------------------------------------------------
 -- /DATA SEED ---------------------------------------------------------------------------------------

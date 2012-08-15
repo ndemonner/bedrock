@@ -62,7 +62,8 @@ handle_cast({handle, Msg, ConnectionState}, State) ->
 handle_cast(_Msg, State) ->
   {noreply, State}.
 
-handle_info(_Info, State) ->
+handle_info(Info, State) ->
+  lager:info("Info: ~p", Info),
   {noreply, State}.
 
 terminate(_Reason, _State) ->
@@ -84,8 +85,10 @@ route(RPC, State) ->
     Anything -> Anything
   catch
     throw:unauthorized -> {error, unauthorized_message(), State};
-    _:_                -> {error, bad_interface_message(), State}
+    throw:unavailable  -> {error, unavailable_message(), State};
+    _:_                -> {error, general_error_message(), State}
   end.
+  % erlang:apply(Interface, Function, Params).
 
 rpc_to_proplist(request, Message) ->
   [_Type, _Id, ServiceAndMethod, Args] = Message,
@@ -97,11 +100,14 @@ rpc_to_proplist(notify, Message) ->
   [Service, Method] = string:tokens(binary_to_list(ServiceAndMethod), "."),
   [{service, Service}, {method, Method}, {args, Args}].
 
-bad_interface_message() ->
-  <<"No such interface call! You may have supplied the wrong number of arguments.">>.
+general_error_message() ->
+  <<"A general error was returned! Check to make sure you're calling the correct interface and method with the correct arguments. If this error persists, contact support.">>.
 
 unauthorized_message() ->
-  <<"You are not authorized to perform that call. The attempt has been logged.">>.
+  <<"You are not authorized to perform this call. The attempt has been logged.">>.
+
+unavailable_message() ->
+  <<"You have not added this add-on service to your account.">>.
 
 maybe_proplist(Arg) ->
   case Arg of
@@ -115,6 +121,3 @@ maybe_wrap([{_,_}|_] = Thing)  -> {[maybe_wrap(Tuple) || Tuple <- Thing]};
 maybe_wrap([_|_] = List)       -> [maybe_wrap(Thing) || Thing <- List];
 maybe_wrap({_,_} = Thing)      -> {maybe_wrap(element(1, Thing)), maybe_wrap(element(2, Thing))};
 maybe_wrap(Thing)              -> Thing.
-
-
-
