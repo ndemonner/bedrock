@@ -12,11 +12,14 @@ websocket_init(_TransportName, Req, _Opts) ->
   ok = eredis_sub:controlling_process(PubsubClient, self()),
 
   bedrock_redis:incr(<<"active-persons">>),
+  bedrock_redis:publish(<<"person-connect">>, undefined),
+
   {ok, Req, [{pid, self()}, {pubsub_client, PubsubClient}]}.
 
 websocket_handle({binary, Msg}, Req, State) ->
+  bedrock_stats:rpc_made(),
   poolboy:transaction(router_pool, fun(Router) -> 
-    gen_server:cast(Router, {handle, Msg, State})
+    gen_server:cast(Router, {handle, Msg, [{response_start_time, now()} | State]})
   end),
   {ok, Req, State, hibernate};
 
@@ -24,7 +27,7 @@ websocket_handle(_Data, Req, State) ->
   {ok, Req, State, hibernate}.
 
 websocket_info({send, Msg, NewState}, Req, _State) ->
-  {reply, {binary, Msg}, Req, NewState, hibernate};
+  {reply, {binary, Msg}, Req, bedrock_stats:store_response_time(NewState), hibernate};
 
 websocket_info({message, Channel, Message, _Pid}, Req, State) ->
   PSClient = proplists:get_value(pubsub_client, State),
@@ -56,9 +59,12 @@ websocket_info(Msg, Req, State) ->
 
 websocket_terminate(_Reason, _Req, State) ->
   bedrock_redis:decr(<<"active-persons">>),
+  bedrock_redis:publish(<<"person-disconnect">>, undefined),
+
   eredis_sub:stop(proplists:get_value(pubsub_client, State)),
   ok.
 
+maybe_wrap(undefined)          -> <<"undefined">>;
 maybe_wrap([{_,_}|_] = Thing)  -> {[maybe_wrap(Tuple) || Tuple <- Thing]};
 maybe_wrap([_|_] = List)       -> [maybe_wrap(Thing) || Thing <- List];
 maybe_wrap({_,_} = Thing)      -> {maybe_wrap(element(1, Thing)), maybe_wrap(element(2, Thing))};

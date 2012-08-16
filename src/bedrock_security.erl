@@ -26,8 +26,8 @@ identify(PersonType, [{<<"email">>, Email}, {<<"password">>, Password}]) ->
 
 identify(Table, Key) ->
   case bedrock_redis:get(Key) of
-    {ok, undefined} -> error;
-    {ok, Id}        ->
+    undefined -> error;
+    Id        ->
       case bedrock_pg:get(Table, Id) of
         {ok, Person} -> {ok, Person};
         {error, notfound} -> error
@@ -98,7 +98,13 @@ log_action(ActorType, Id, Email, Interface, Method, Args) ->
     {<<"method">>, Method},
     {<<"args">>, Args}
   ],
-  bedrock_pg:insert('logged_actions', Action).
+  {ok, Result} = bedrock_pg:insert('logged_actions', Action),
+  case ActorType of 
+    <<"developer">>     -> 
+      bedrock_redis:publish(<<"developer-action-logged">>, Result);
+    <<"administrator">> -> 
+      bedrock_redis:publish(<<"admin-action-logged">>, Result)
+  end.
 
 must_be_at_least(admin, State) ->
   case proplists:get_value(role, State) of
@@ -171,6 +177,14 @@ must_have_access_to(user, Target, State) ->
         false -> throw(unauthorized)
       end;
     _Other -> throw(unauthorized)
+  end;
+
+must_have_access_to(channel, Target, State) ->
+  case proplists:get_value(role, State) of
+    admin       -> ok;
+    developer   -> accessible(Target, developer);
+    application -> accessible(Target, application);
+    user        -> accessible(Target, user)
   end.
 
 must_have_service(Service, State) ->
@@ -199,3 +213,29 @@ v4(R1, R2, R3, R4) ->
 authenticate(Person, Password) ->
   Hash = binary_to_list(proplists:get_value(<<"password">>, Person)),
   {ok, Hash} =:= bcrypt:hashpw(Password, Hash).
+
+accessible(Channel, Role) ->
+  case lists:is_member(Channel, [C || {C, _} <- protected_channels()]) of
+    true  -> 
+      case proplists:get_value(Channel) of
+        admin        -> throw(protected);
+        developer    -> case Role of
+                          developer -> ok;
+                          _Other    -> throw(protected)
+                        end;
+        application  -> case Role of
+                          developer   -> ok;
+                          application -> ok;
+                          _Other      -> throw(protected)
+                        end;
+        user         -> ok
+      end;
+    false -> ok
+  end.
+
+protected_channels() -> [
+  {<<"admin-signed-on">>, admin},
+  {<<"admin-signed-off">>, admin},
+  {<<"admin-action-logged">>, admin},
+  {<<"developer-action-logged">>, developer}
+].

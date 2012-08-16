@@ -14,7 +14,8 @@ sign_in(Credentials, State) ->
       Reply = [{<<"identity">>, Person}, {<<"key">>, Key}],
 
       bedrock_security:log_action(admin, Person, admin, sign_in, []),
-      
+      bedrock_redis:publish(<<"admin-signed-in">>, Person),
+
       IdentityT = {identity, Person},
       RoleT = {role, admin},
       KeyT = {key, Key},
@@ -33,6 +34,7 @@ sign_out(State) ->
   State3 = proplists:delete(key, State2),
 
   bedrock_security:log_action(admin, Person, admin, sign_out, []),
+  bedrock_redis:publish(<<"admin-signed-out">>, Person),
 
   {ok, undefined, State3}.
 

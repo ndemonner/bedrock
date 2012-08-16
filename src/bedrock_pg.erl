@@ -16,7 +16,9 @@
   insert/2, 
   update/3, 
   delete/2,
-  delete_all/1
+  delete_all/1,
+  count/1,
+  count_where/3
 ]).
 
 %% ------------------------------------------------------------------
@@ -76,6 +78,16 @@ delete(Table, Id) ->
 delete_all(Table) -> 
   poolboy:transaction(pg, fun(Worker) ->
     gen_server:call(Worker, {delete_all, Table})
+  end).
+
+count(Table) -> 
+  poolboy:transaction(pg, fun(Worker) ->
+    gen_server:call(Worker, {count, Table})
+  end).
+
+count_where(Table, Where, Params) -> 
+  poolboy:transaction(pg, fun(Worker) ->
+    gen_server:call(Worker, {count_where, Table, Where, Params})
   end).
 
 %% ------------------------------------------------------------------
@@ -233,6 +245,36 @@ handle_call({delete_all, Table}, _From, State) ->
   Statement    = io_lib:format(StatementFmt, [Table]),
   {ok, _}      = pgsql:equery(Connection, Statement, []),
   {reply, ok, State};
+
+handle_call({count, Table}, _From, State) ->
+  Connection   = proplists:get_value(connection, State),
+  StatementFmt = "SELECT count(*) FROM ~s",
+  Statement    = io_lib:format(StatementFmt, [Table]),
+  {ok, RC, RR} = pgsql:equery(Connection, Statement, []),
+
+  Columns = [Column || {column, Column, _, _, _, _} <- RC],
+  Rows = [tuple_to_list(Row) || Row <- RR],
+
+  ZippedLists = [lists:zip(Columns, Row) || Row <- Rows],
+  Results = [finalize(ZL) || ZL <- ZippedLists],
+
+  [Result] = Results,
+  {reply, {ok, proplists:get_value(<<"count">>, Result)}, State};
+
+handle_call({count_where, Table, Where, Params}, _From, State) ->
+  Connection   = proplists:get_value(connection, State),
+  StatementFmt = "SELECT count(*) FROM ~s WHERE ~s",
+  Statement    = io_lib:format(StatementFmt, [Table, Where]),
+  {ok, RC, RR} = pgsql:equery(Connection, Statement, [Params]),
+
+  Columns = [Column || {column, Column, _, _, _, _} <- RC],
+  Rows = [tuple_to_list(Row) || Row <- RR],
+
+  ZippedLists = [lists:zip(Columns, Row) || Row <- Rows],
+  Results = [finalize(ZL) || ZL <- ZippedLists],
+
+  [Result] = Results,
+  {reply, {ok, proplists:get_value(<<"count">>, Result)}, State};
 
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
