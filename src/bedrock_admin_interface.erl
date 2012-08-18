@@ -19,7 +19,7 @@ create(Person, State) ->
   {ok, Result} = bedrock_pg:insert(<<"administrators">>, Person1),
 
   Actor = proplists:get_value(identity, State),
-  bedrock_security:log_action(admin, Actor, admin, create_admin, [Person1]),
+  bedrock_security:log_action(admin, Actor, admin, create_admin, Person1),
   bedrock_redis:publish(<<"admin-created">>, Person1),
 
   {ok, Result, State}.

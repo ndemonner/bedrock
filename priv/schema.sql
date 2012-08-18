@@ -42,7 +42,6 @@ CREATE TABLE applications (
   created               timestamp                                NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated               timestamp                                NOT NULL DEFAULT CURRENT_TIMESTAMP,
   name                  varchar(255)                             NOT NULL,
-  usage                 bigint                                   NOT NULL DEFAULT 0,
   developer_id          integer REFERENCES developers (id)       ON DELETE CASCADE NOT NULL,
   UNIQUE (name, developer_id)
 );
@@ -115,7 +114,9 @@ CREATE TABLE services (
   created               timestamp                                NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated               timestamp                                NOT NULL DEFAULT CURRENT_TIMESTAMP,
   name                  varchar(255)                             NOT NULL UNIQUE,
-  testing               boolean                                  NOT NULL DEFAULT TRUE
+  testing               boolean                                  NOT NULL DEFAULT TRUE,
+  capacity_context      varchar(255)                             NOT NULL,
+  description           text                                     NOT NULL
 );
 -----------------------------------------------------------------------------------------------------
 -- /SERVICES ----------------------------------------------------------------------------------------
@@ -146,11 +147,10 @@ CREATE TABLE usage_constraints (
   created               timestamp                                NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated               timestamp                                NOT NULL DEFAULT CURRENT_TIMESTAMP,
   service_id            integer REFERENCES services (id)         ON DELETE CASCADE NOT NULL,
-  level                 int                                      NOT NULL,
+  tier                  int                                      NOT NULL,
   capacity              bigint                                   NOT NULL,
-  description           text                                     NOT NULL,
   UNIQUE (service_id, capacity),
-  UNIQUE (service_id, level)
+  UNIQUE (service_id, tier)
 );
 CREATE INDEX uc_service_id_index ON usage_constraints USING hash (service_id);
 -----------------------------------------------------------------------------------------------------
@@ -165,6 +165,7 @@ CREATE TABLE developer_usage_constraints (
   id                    serial primary key,
   created               timestamp                                 NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated               timestamp                                 NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  usage                 bigint                                    NOT NULL DEFAULT 0,
   developer_id          integer REFERENCES developers (id)        ON DELETE CASCADE NOT NULL,
   usage_constraint_id   integer REFERENCES usage_constraints (id) ON DELETE CASCADE NOT NULL
 );
@@ -204,9 +205,9 @@ CREATE INDEX logged_actions_created ON logged_actions (created);
 INSERT INTO administrators (email, password) 
   VALUES ('nick@demonner.net', '$2a$12$X2mAKZYOY0902KMK9BScc.TVW7aOduZmvlmeq6aLXC38ZiUB3Gthi');
 
-INSERT INTO services (name) VALUES ('base');
-INSERT INTO services (name) VALUES ('messaging');
-INSERT INTO services (name) VALUES ('hooks');
+INSERT INTO services (name, capacity_context, description) VALUES ('base', 'Object storage', 'No description yet.');
+INSERT INTO services (name, capacity_context, description) VALUES ('messaging', 'Messages sent', 'No description yet.');
+INSERT INTO services (name, capacity_context, description) VALUES ('hooks', 'Hooks called', 'No description yet.');
 -----------------------------------------------------------------------------------------------------
 -- /DATA SEED ---------------------------------------------------------------------------------------
 -----------------------------------------------------------------------------------------------------

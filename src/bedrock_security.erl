@@ -80,7 +80,7 @@ log_action(admin, Who, Interface, Method, Args) ->
     proplists:get_value(<<"email">>, Who),
     list_to_binary(atom_to_list(Interface)),
     list_to_binary(atom_to_list(Method)),
-    list_to_binary(string:join(Args, ", "))
+    list_to_binary(io_lib:format("~p", [Args]))
   );
 
 log_action(developer, Who, Interface, Method, Args) ->

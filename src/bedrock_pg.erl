@@ -265,7 +265,7 @@ handle_call({count_where, Table, Where, Params}, _From, State) ->
   Connection   = proplists:get_value(connection, State),
   StatementFmt = "SELECT count(*) FROM ~s WHERE ~s",
   Statement    = io_lib:format(StatementFmt, [Table, Where]),
-  {ok, RC, RR} = pgsql:equery(Connection, Statement, [Params]),
+  {ok, RC, RR} = pgsql:equery(Connection, Statement, Params),
 
   Columns = [Column || {column, Column, _, _, _, _} <- RC],
   Rows = [tuple_to_list(Row) || Row <- RR],
