@@ -114,7 +114,8 @@ CREATE TABLE services (
   id                    serial primary key,
   created               timestamp                                NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated               timestamp                                NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  name                  varchar(255)                             NOT NULL UNIQUE
+  name                  varchar(255)                             NOT NULL UNIQUE,
+  testing               boolean                                  NOT NULL DEFAULT TRUE
 );
 -----------------------------------------------------------------------------------------------------
 -- /SERVICES ----------------------------------------------------------------------------------------

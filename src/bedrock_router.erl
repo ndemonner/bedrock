@@ -84,9 +84,12 @@ route(RPC, State) ->
   try erlang:apply(Interface, Function, Params) of
     Anything -> Anything
   catch
-    throw:unauthorized -> {error, unauthorized_message(), State};
-    throw:unavailable  -> {error, unavailable_message(), State};
-    _:_                -> {error, general_error_message(), State}
+    throw:unauthorized   -> {error, unauthorized_message(), State};
+    throw:unavailable    -> {error, unavailable_message(), State};
+    throw:requires_key   -> {error, requires_key_message(), State};
+    throw:{undefined, M} -> {error, undefined_message(M), State};
+    throw:{conflict, C}  -> {error, conflict_message(C), State};
+    _:_                  -> {error, general_error_message(), State}
   end.
   % erlang:apply(Interface, Function, Params).
 
@@ -108,6 +111,16 @@ unauthorized_message() ->
 
 unavailable_message() ->
   <<"You have not added this add-on service to your account.">>.
+
+requires_key_message() ->
+  <<"This service currently requires a valid test access key.">>.
+
+undefined_message(Undefined) ->
+  Missing = string:join(Undefined, ", "),
+  binary_to_list(io_lib:format("The following required fields are missing: ~s.", [Missing])).
+
+conflict_message({K, V}) ->
+  binary_to_list(io_lib:format("The ~s '~s' has already been used.", [K, V])).
 
 maybe_proplist(Arg) ->
   case Arg of

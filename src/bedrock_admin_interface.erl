@@ -4,8 +4,25 @@
   sign_out/1,
   get_identity/1,
   establish_identity/2,
-  clear_logs/1
+  clear_logs/1,
+  create/2
 ]).
+
+create(Person, State) ->
+  bedrock_security:must_be_at_least(admin, State),
+  bedrock_security:must_be_defined([<<"email">>, <<"password">>], Person),
+  bedrock_security:must_be_unique(<<"administrators">>, <<"email">>, Person),
+
+  HashedPass = {<<"password">>, bedrock_security:hash(proplists:get_value(<<"password">>, Person))},
+  Person1 = lists:keyreplace(<<"password">>, 1, Person, HashedPass),
+
+  {ok, Result} = bedrock_pg:insert(<<"administrators">>, Person1),
+
+  Actor = proplists:get_value(identity, State),
+  bedrock_security:log_action(admin, Actor, admin, create_admin, [Person1]),
+  bedrock_redis:publish(<<"admin-created">>, Person1),
+
+  {ok, Result, State}.
 
 sign_in(Credentials, State) ->
   case bedrock_security:identify(admin, Credentials) of

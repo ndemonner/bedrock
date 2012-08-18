@@ -9,7 +9,11 @@
   must_be_at_least/2,
   must_have_access_to/3,
   must_have_service/2,
-  clear_logs/0
+  must_be_defined/2,
+  must_be_unique/3,
+  clear_logs/0,
+  hash/1,
+  must_be_test_key_for_service/2
 ]).
   
 identify(admin, Key) ->
@@ -86,7 +90,7 @@ log_action(developer, Who, Interface, Method, Args) ->
     proplists:get_value(<<"email">>, Who),
     list_to_binary(atom_to_list(Interface)),
     list_to_binary(atom_to_list(Method)),
-    list_to_binary(string:join(Args, ", "))
+    list_to_binary(io_lib:format("~p", [Args]))
   ).
 
 log_action(ActorType, Id, Email, Interface, Method, Args) ->
@@ -200,6 +204,38 @@ must_have_service(Service, State) ->
 clear_logs() ->
   bedrock_pg:delete_all(<<"logged_actions">>).
 
+hash(Pwd) ->
+  {ok, Salt} = bcrypt:gen_salt(12),
+  {ok, Hash} = bcrypt:hashpw(Pwd, Salt),
+  Hash.
+
+must_be_defined(Keys, Object) ->
+  Undefined = [binary_to_list(Key) || Key <- Keys, not proplists:is_defined(Key, Object)],
+  case Undefined of
+    [] -> ok;
+    _  -> throw({undefined, Undefined})
+  end.
+
+must_be_unique(Table, Key, Object) ->
+  Where = io_lib:format("~s = $1", [Key]),
+  Params = [proplists:get_value(Key, Object)],
+  case bedrock_pg:find(Table, Where, Params) of
+    [] -> ok;
+    _  -> throw({conflict, {Key, proplists:get_value(Key, Object)}})
+  end.
+
+must_be_test_key_for_service(Key, ServiceId) ->
+  case Key of
+    undefined -> throw(requires_key);
+    _Other    ->
+      Where = <<"service_id = $1 AND key = $2">>,
+      Params = [ServiceId, Key],
+      case bedrock_pg:find(<<"test_access_grants">>, Where, Params) of
+        []            -> throw(requires_key);
+        [_FoundGrant] -> ok
+      end
+  end.
+
 uuid() ->
   random:seed(now()), 
   v4(random:uniform(round(math:pow(2, 48))) - 1, 
@@ -237,5 +273,12 @@ protected_channels() -> [
   {<<"admin-signed-on">>, admin},
   {<<"admin-signed-off">>, admin},
   {<<"admin-action-logged">>, admin},
-  {<<"developer-action-logged">>, developer}
+  {<<"admin-created">>, admin},
+  {<<"admin-deleted">>, admin},
+
+  {<<"developer-signed-on">>, developer},
+  {<<"developer-signed-off">>, developer},
+  {<<"developer-action-logged">>, developer},
+  {<<"developer-created">>, developer},
+  {<<"developer-deleted">>, developer}
 ].
