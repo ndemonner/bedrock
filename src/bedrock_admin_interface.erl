@@ -30,7 +30,7 @@ sign_in(Credentials, State) ->
       Key = bedrock_security:generate_key(Person),
       Reply = [{<<"identity">>, Person}, {<<"key">>, Key}],
 
-      bedrock_security:log_action(admin, Person, admin, sign_in, []),
+      bedrock_security:log_action(admin, Person, admin, sign_in, Person),
       bedrock_redis:publish(<<"admin-signed-in">>, Person),
 
       IdentityT = {identity, Person},
@@ -50,7 +50,7 @@ sign_out(State) ->
   bedrock_security:invalidate_key(proplists:get_value(key, State2)),
   State3 = proplists:delete(key, State2),
 
-  bedrock_security:log_action(admin, Person, admin, sign_out, []),
+  bedrock_security:log_action(admin, Person, admin, sign_out, Person),
   bedrock_redis:publish(<<"admin-signed-out">>, Person),
 
   {ok, undefined, State3}.

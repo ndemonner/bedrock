@@ -12,7 +12,7 @@ websocket_init(_TransportName, Req, _Opts) ->
   ok = eredis_sub:controlling_process(PubsubClient, self()),
 
   bedrock_redis:incr(<<"active-persons">>),
-  bedrock_redis:publish(<<"person-connect">>, undefined),
+  bedrock_redis:publish(<<"person-connected">>, undefined),
 
   {ok, Req, [{pid, self()}, {pubsub_client, PubsubClient}]}.
 
@@ -59,7 +59,7 @@ websocket_info(Msg, Req, State) ->
 
 websocket_terminate(_Reason, _Req, State) ->
   bedrock_redis:decr(<<"active-persons">>),
-  bedrock_redis:publish(<<"person-disconnect">>, undefined),
+  bedrock_redis:publish(<<"person-disconnected">>, undefined),
 
   eredis_sub:stop(proplists:get_value(pubsub_client, State)),
   ok.

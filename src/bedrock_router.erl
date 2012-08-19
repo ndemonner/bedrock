@@ -117,10 +117,10 @@ requires_key_message() ->
 
 undefined_message(Undefined) ->
   Missing = string:join(Undefined, ", "),
-  binary_to_list(io_lib:format("The following required fields are missing: ~s.", [Missing])).
+  list_to_binary(io_lib:format("The following required fields are missing: ~s.", [Missing])).
 
 conflict_message({K, V}) ->
-  binary_to_list(io_lib:format("The ~s '~s' has already been used.", [K, V])).
+  list_to_binary(io_lib:format("The ~s '~s' has already been used.", [K, V])).
 
 maybe_proplist(Arg) ->
   case Arg of

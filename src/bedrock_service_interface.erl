@@ -3,7 +3,9 @@
   retrieve_all/1,
   tiers/2,
   subscriber_count/2,
-  set_testing/3
+  set_testing/3,
+  create/2,
+  delete/2
 ]).
 
 retrieve_all(State) ->
@@ -30,5 +32,38 @@ set_testing(ServiceId, Bool, State) ->
 
   Actor = proplists:get_value(identity, State),
   bedrock_security:log_action(admin, Actor, service, set_testing, [{service_id, ServiceId}, {testing, Bool}]),
+  {ok, Service} = bedrock_pg:get(<<"services">>, ServiceId), 
+  case Bool of
+    true  -> bedrock_redis:publish(<<"testing-activated">>, Service);
+    false -> bedrock_redis:publish(<<"testing-deactivated">>, Service)
+  end,
+  
+  {ok, undefined, State}.
+
+create(Service, State) ->
+  bedrock_security:must_be_at_least(admin, State),
+
+  bedrock_security:must_be_defined([<<"name">>, <<"capacity_context">>, <<"description">>], Service),
+  bedrock_security:must_be_unique(<<"services">>, <<"name">>, Service),
+
+  {ok, _Result} = bedrock_pg:insert(<<"services">>, Service),
+
+  Actor = proplists:get_value(identity, State),
+  bedrock_security:log_action(admin, Actor, service, create, Service),
+  bedrock_redis:publish(<<"service-created">>, Service),
 
   {ok, undefined, State}.
+
+delete(ServiceId, State) ->
+  bedrock_security:must_be_at_least(admin, State),
+
+  {ok, _Result} = bedrock_pg:delete(<<"services">>, ServiceId),
+
+  Actor = proplists:get_value(identity, State),
+  bedrock_security:log_action(admin, Actor, service, delete, [{service_id, ServiceId}]),
+  bedrock_redis:publish(<<"service-deleted">>, ServiceId),
+
+  {ok, undefined, State}.
+
+
+

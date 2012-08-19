@@ -74,23 +74,30 @@ generate_uuid() ->
   base32:encode(uuid(), [lower, nopad]).
 
 log_action(admin, Who, Interface, Method, Args) ->
+  % convert the args to json and then prettify it for easy reading
+  Args1 = maybe_strip_password(Args),
+  Json = jsx:encode(Args1),
+  PrettyJson = jsx:prettify(Json),
   log_action(
     <<"administrator">>,
     proplists:get_value(<<"id">>, Who),
     proplists:get_value(<<"email">>, Who),
     list_to_binary(atom_to_list(Interface)),
     list_to_binary(atom_to_list(Method)),
-    list_to_binary(io_lib:format("~p", [Args]))
+    PrettyJson
   );
 
 log_action(developer, Who, Interface, Method, Args) ->
+  Args1 = maybe_strip_password(Args),
+  Json = jsx:encode(Args1),
+  PrettyJson = jsx:prettify(Json),
   log_action(
     <<"developer">>,
     proplists:get_value(<<"id">>, Who),
     proplists:get_value(<<"email">>, Who),
     list_to_binary(atom_to_list(Interface)),
     list_to_binary(atom_to_list(Method)),
-    list_to_binary(io_lib:format("~p", [Args]))
+    PrettyJson
   ).
 
 log_action(ActorType, Id, Email, Interface, Method, Args) ->
@@ -220,8 +227,8 @@ must_be_unique(Table, Key, Object) ->
   Where = io_lib:format("~s = $1", [Key]),
   Params = [proplists:get_value(Key, Object)],
   case bedrock_pg:find(Table, Where, Params) of
-    [] -> ok;
-    _  -> throw({conflict, {Key, proplists:get_value(Key, Object)}})
+    {ok, []} -> ok;
+    {ok, _}  -> throw({conflict, {Key, proplists:get_value(Key, Object)}})
   end.
 
 must_be_test_key_for_service(Key, ServiceId) ->
@@ -231,8 +238,8 @@ must_be_test_key_for_service(Key, ServiceId) ->
       Where = <<"service_id = $1 AND key = $2">>,
       Params = [ServiceId, Key],
       case bedrock_pg:find(<<"test_access_grants">>, Where, Params) of
-        []            -> throw(requires_key);
-        [_FoundGrant] -> ok
+        {ok, []}            -> throw(requires_key);
+        {ok, [_FoundGrant]} -> ok
       end
   end.
 
@@ -282,3 +289,9 @@ protected_channels() -> [
   {<<"developer-created">>, developer},
   {<<"developer-deleted">>, developer}
 ].
+
+maybe_strip_password([{_,_}|_]=Args) ->
+  proplists:delete(<<"password">>, Args);
+
+maybe_strip_password(Args) ->
+  Args.

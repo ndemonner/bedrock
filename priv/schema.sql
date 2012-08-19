@@ -42,10 +42,12 @@ CREATE TABLE applications (
   created               timestamp                                NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated               timestamp                                NOT NULL DEFAULT CURRENT_TIMESTAMP,
   name                  varchar(255)                             NOT NULL,
+  appid                 varchar(255)                             NOT NULL UNIQUE,
   developer_id          integer REFERENCES developers (id)       ON DELETE CASCADE NOT NULL,
   UNIQUE (name, developer_id)
 );
 CREATE INDEX applications_developer_id_index ON applications USING hash (developer_id);
+CREATE INDEX applications_appid_index ON applications USING hash (appid);
 -----------------------------------------------------------------------------------------------------
 -- /APPLICATIONS ------------------------------------------------------------------------------------
 -----------------------------------------------------------------------------------------------------
@@ -149,6 +151,7 @@ CREATE TABLE usage_constraints (
   service_id            integer REFERENCES services (id)         ON DELETE CASCADE NOT NULL,
   tier                  int                                      NOT NULL,
   capacity              bigint                                   NOT NULL,
+  cost                  integer                                  NOT NULL DEFAULT 0,
   UNIQUE (service_id, capacity),
   UNIQUE (service_id, tier)
 );

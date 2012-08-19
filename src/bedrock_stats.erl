@@ -75,7 +75,13 @@ flush_response_times() ->
   Sum = bedrock_redis:get(<<"response-time-sum">>),
   Total = bedrock_redis:get(<<"response-total">>),
 
-  Time = (Sum / Total) / 1000,
+  Total1 = case Total of 
+    undefined -> 1;
+    0         -> 1;
+    _Other    -> Total
+  end,
+
+  Time = (Sum / Total1) / 1000,
 
   bedrock_redis:publish(<<"response-average">>, Time).
 
