@@ -124,10 +124,9 @@ conflict_message({K, V}) ->
 
 maybe_proplist(Arg) ->
   case Arg of
-    {[{_,_}|_]} -> 
-      {RealArg} = Arg,
-      RealArg;
-    _ -> Arg
+    {[{_,_}|_]} -> {RealArg} = Arg, RealArg;
+    {[]}        -> [];
+    _           -> Arg
   end.
 
 maybe_wrap([{_,_}|_] = Thing)  -> {[maybe_wrap(Tuple) || Tuple <- Thing]};

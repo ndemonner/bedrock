@@ -217,7 +217,10 @@ hash(Pwd) ->
   Hash.
 
 must_be_defined(Keys, Object) ->
-  Undefined = [binary_to_list(Key) || Key <- Keys, not proplists:is_defined(Key, Object)],
+  Undefined = [binary_to_list(Key) || Key <- Keys, 
+    not proplists:is_defined(Key, Object) 
+    orelse proplists:get_value(Key, Object) =:= <<"">>],
+
   case Undefined of
     [] -> ok;
     _  -> throw({undefined, Undefined})

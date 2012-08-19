@@ -56,11 +56,11 @@ create(Service, State) ->
 
 delete(ServiceId, State) ->
   bedrock_security:must_be_at_least(admin, State),
-
-  {ok, _Result} = bedrock_pg:delete(<<"services">>, ServiceId),
+  {ok, Service} = bedrock_pg:get(<<"services">>, ServiceId),
+  bedrock_pg:delete(<<"services">>, ServiceId),
 
   Actor = proplists:get_value(identity, State),
-  bedrock_security:log_action(admin, Actor, service, delete, [{service_id, ServiceId}]),
+  bedrock_security:log_action(admin, Actor, service, delete, Service),
   bedrock_redis:publish(<<"service-deleted">>, ServiceId),
 
   {ok, undefined, State}.
