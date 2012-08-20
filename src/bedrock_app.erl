@@ -15,9 +15,8 @@ start(_StartType, _StartArgs) ->
   bedrock_stats:reset_stats(),
 
   % Stats timers
-  Interval = bedrock_stats:flush_interval() * 1000,
-  timer:apply_interval(Interval, bedrock_stats, flush_counters, []),
-  timer:apply_interval(Interval, bedrock_stats, flush_response_times, []),
+  Interval = bedrock_stats:aggregation_interval() * 1000,
+  timer:apply_interval(Interval, bedrock_stats, perform_stats_aggregation, []),
 
   Ret.
 

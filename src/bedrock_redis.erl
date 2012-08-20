@@ -9,15 +9,24 @@
 -export([start_link/1]).
 -export ([
   get/1, 
+  get/2, 
   set/2, 
+  set/3, 
   expire/2,
+  expire/3,
   delete/1,
+  delete/2,
   incr/1,
+  incr/2,
   incrby/2,
+  incrby/3,
   getset/2,
+  getset/3,
   decr/1,
+  decr/2,
   publish/2,
-  transaction/2 
+  start_transaction/0,
+  end_transaction/1 
 ]).
 
 %% ------------------------------------------------------------------
@@ -34,55 +43,80 @@
 start_link(Args) ->
   gen_server:start_link(?MODULE, Args, []).
 
+%% Most these functions have an alternate version where an explicit worker PID can
+%% be specified. This is to ensure that the same worker builds a correct queue of
+%% commands during a Redis transaction. If you aren't using a tranaction, just use
+%% the regular function without specifying a worker PID.
+
 get(Key) -> 
   poolboy:transaction(redis, fun(Worker) ->
     gen_server:call(Worker, {get, Key})
   end).
+get(Worker, Key) -> 
+  gen_server:call(Worker, {get, Key}).
 
 set(Key, Value) ->
   poolboy:transaction(redis, fun(Worker) ->
     gen_server:call(Worker, {set, Key, Value})
   end).
+set(Worker, Key, Value) ->
+  gen_server:call(Worker, {set, Key, Value}).
 
 expire(Key, Time) ->
   poolboy:transaction(redis, fun(Worker) ->
     gen_server:call(Worker, {expire, Key, Time})
   end).
+expire(Worker, Key, Time) ->
+  gen_server:call(Worker, {expire, Key, Time}).
 
 delete(Key) ->
   poolboy:transaction(redis, fun(Worker) ->
     gen_server:call(Worker, {delete, Key})
   end).
+delete(Worker, Key) ->
+  gen_server:call(Worker, {delete, Key}).
 
 incr(Key) ->
   poolboy:transaction(redis, fun(Worker) ->
     gen_server:call(Worker, {incr, Key})
   end).
+incr(Worker, Key) ->
+  gen_server:call(Worker, {incr, Key}).
 
 incrby(Key, Value) ->
   poolboy:transaction(redis, fun(Worker) ->
     gen_server:call(Worker, {incrby, Key, Value})
   end).
+incrby(Worker, Key, Value) ->
+  gen_server:call(Worker, {incrby, Key, Value}).
 
 decr(Key) ->
   poolboy:transaction(redis, fun(Worker) ->
     gen_server:call(Worker, {decr, Key})
   end).
+decr(Worker, Key) ->
+  gen_server:call(Worker, {decr, Key}).
 
 publish(Channel, Message) ->
   poolboy:transaction(redis, fun(Worker) ->
     gen_server:call(Worker, {publish, Channel, Message})
   end).
 
-transaction(Fun, Args) ->
-  poolboy:transaction(redis, fun(Worker) ->
-    gen_server:call(Worker, {transaction, Fun, Args})
-  end).
+start_transaction() ->
+  Worker = poolboy:checkout(redis),
+  gen_server:call(Worker, start_transaction).
+  
+end_transaction(Worker) ->
+  Result = gen_server:call(Worker, end_transaction),
+  poolboy:checkin(redis, Worker),
+  Result.
 
 getset(Key, Value) ->
   poolboy:transaction(redis, fun(Worker) ->
     gen_server:call(Worker, {getset, Key, Value})
   end).
+getset(Worker, Key, Value) ->
+  gen_server:call(Worker, {getset, Key, Value}).
 
 %% ------------------------------------------------------------------
 %% gen_server Function Definitions
@@ -139,10 +173,13 @@ handle_call({publish, Channel, Message}, _From, State) ->
   bedrock_stats:message_sent(),
   {reply, format(Result), State};
 
-handle_call({transaction, Fun, Args}, _From, State) ->
+handle_call(start_transaction, _From, State) ->
   Connection = proplists:get_value(connection, State),
   eredis:q(Connection, ["MULTI"]),
-  Fun(Args),
+  {reply, self(), State};
+
+handle_call(end_transaction, _From, State) ->
+  Connection = proplists:get_value(connection, State),
   {ok, Result} = eredis:q(Connection, ["EXEC"]),
   {reply, format(Result), State};
   
@@ -164,6 +201,9 @@ code_change(_OldVsn, State, _Extra) ->
 %% ------------------------------------------------------------------
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
+
+format(Result) when is_list(Result) ->
+  [format(R) || R <- Result];
 
 format(Result) ->
   try list_to_integer(binary_to_list(Result)) of
