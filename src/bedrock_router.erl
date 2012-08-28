@@ -27,7 +27,7 @@ start_link(Args) ->
 %% ------------------------------------------------------------------
 
 init(_Args) ->
-  {ok, undefined}.
+  {ok, undefined, hibernate}.
 
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.

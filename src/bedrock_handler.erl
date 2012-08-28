@@ -14,7 +14,7 @@ websocket_init(_TransportName, Req, _Opts) ->
   bedrock_redis:incr(<<"active-persons">>),
   bedrock_redis:publish(<<"person-connected">>, undefined),
 
-  {ok, Req, [{pid, self()}, {pubsub_client, PubsubClient}]}.
+  {ok, Req, [{pid, self()}, {pubsub_client, PubsubClient}], hibernate}.
 
 websocket_handle({binary, Msg}, Req, State) ->
   bedrock_stats:rpc_made(),

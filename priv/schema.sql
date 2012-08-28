@@ -203,14 +203,34 @@ CREATE INDEX logged_actions_created ON logged_actions (created);
 
 
 -----------------------------------------------------------------------------------------------------
+-- FACTS --------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------
+CREATE TABLE facts (
+  id                    serial primary key,
+  created               timestamp                                 NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated               timestamp                                 NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  category              varchar(255)                              NOT NULL,
+  attributes            hstore                                    NOT NULL,
+  application_id        int REFERENCES applications (id)          NOT NULL,                  
+  user_id               int REFERENCES users (id)                  
+);
+CREATE INDEX facts_application_id ON facts USING hash(application_id);
+CREATE INDEX facts_user_id ON facts USING hash(user_id);
+CREATE INDEX facts_category ON facts USING hash(category);
+-----------------------------------------------------------------------------------------------------
+-- /FACTS -------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------
+
+
+-----------------------------------------------------------------------------------------------------
 -- DATA SEED ----------------------------------------------------------------------------------------
 -----------------------------------------------------------------------------------------------------
 INSERT INTO administrators (email, password) 
   VALUES ('nick@demonner.net', '$2a$12$X2mAKZYOY0902KMK9BScc.TVW7aOduZmvlmeq6aLXC38ZiUB3Gthi');
 
-INSERT INTO services (name, capacity_context, description) VALUES ('base', 'Object storage', 'No description yet.');
-INSERT INTO services (name, capacity_context, description) VALUES ('messaging', 'Messages sent', 'No description yet.');
-INSERT INTO services (name, capacity_context, description) VALUES ('hooks', 'Hooks called', 'No description yet.');
+INSERT INTO services (name, capacity_context, description) VALUES ('base', 'total storage in bytes', 'No description yet.');
+INSERT INTO services (name, capacity_context, description) VALUES ('messaging', 'number of messages sent per month', 'No description yet.');
+INSERT INTO services (name, capacity_context, description) VALUES ('hooks', 'number of hooks called per month', 'No description yet.');
 -----------------------------------------------------------------------------------------------------
 -- /DATA SEED ---------------------------------------------------------------------------------------
 -----------------------------------------------------------------------------------------------------

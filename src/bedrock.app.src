@@ -13,6 +13,11 @@
         {size, 256}
       ], [
         {module, bedrock_router}
+      ]},      
+      {meter_pool, [
+        {size, 256}
+      ], [
+        {module, bedrock_meter}
       ]},
       {pg, [
         {size, 10},

@@ -12,7 +12,7 @@
 ]).
 
 retrieve_all(State) ->
-  {ok, Services} = bedrock_pg:get_all(<<"services">>, <<"ORDER BY name ASC">>),
+  {ok, Services} = bedrock_pg:get_all(<<"services">>, <<"ORDER BY id ASC">>),
   {ok, Services, State}.
 
 tiers(ServiceId, State) ->
