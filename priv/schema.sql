@@ -170,10 +170,12 @@ CREATE TABLE developer_usage_constraints (
   updated               timestamp                                 NOT NULL DEFAULT CURRENT_TIMESTAMP,
   usage                 bigint                                    NOT NULL DEFAULT 0,
   developer_id          int     REFERENCES developers (id)        ON DELETE CASCADE NOT NULL,
-  usage_constraint_id   int     REFERENCES usage_constraints (id) ON DELETE CASCADE NOT NULL
+  usage_constraint_id   int     REFERENCES usage_constraints (id) ON DELETE CASCADE NOT NULL,
+  service_id            int     REFERENCES services (id)          NOT NULL
 );
 CREATE INDEX duc_developer_id ON developer_usage_constraints USING hash (developer_id);
 CREATE INDEX duc_uc_id ON developer_usage_constraints USING hash (usage_constraint_id);
+CREATE INDEX duc_service_id ON developer_usage_constraints USING hash (service_id);
 -----------------------------------------------------------------------------------------------------
 -- /DEVELOPER USAGE CONSTRAINTS ---------------------------------------------------------------------
 -----------------------------------------------------------------------------------------------------
@@ -203,22 +205,24 @@ CREATE INDEX logged_actions_created ON logged_actions (created);
 
 
 -----------------------------------------------------------------------------------------------------
--- FACTS --------------------------------------------------------------------------------------------
+-- OBJECTS ------------------------------------------------------------------------------------------
 -----------------------------------------------------------------------------------------------------
-CREATE TABLE facts (
+CREATE TABLE objects (
   id                    serial primary key,
   created               timestamp                                 NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated               timestamp                                 NOT NULL DEFAULT CURRENT_TIMESTAMP,
   category              varchar(255)                              NOT NULL,
+  writers               integer[]                                 NOT NULL DEFAULT {-1},
+  readers               integer[]                                 NOT NULL DEFAULT {-1},
   attributes            hstore                                    NOT NULL,
   application_id        int REFERENCES applications (id)          NOT NULL,                  
   user_id               int REFERENCES users (id)                  
 );
-CREATE INDEX facts_application_id ON facts USING hash(application_id);
-CREATE INDEX facts_user_id ON facts USING hash(user_id);
-CREATE INDEX facts_category ON facts USING hash(category);
+CREATE INDEX objects_application_id ON objects USING hash(application_id);
+CREATE INDEX objects_user_id ON objects USING hash(user_id);
+CREATE INDEX objects_category ON objects USING hash(category);
 -----------------------------------------------------------------------------------------------------
--- /FACTS -------------------------------------------------------------------------------------------
+-- /OBJECTS -----------------------------------------------------------------------------------------
 -----------------------------------------------------------------------------------------------------
 
 

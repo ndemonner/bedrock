@@ -11,7 +11,7 @@
 
 start(_StartType, _StartArgs) ->
   Ret = bedrock_sup:start_link(),
-  bedrock_redis:set(<<"active-persons">>, 0),
+  bedrock_redis:set(<<"persons-connected">>, 0),
   bedrock_stats:reset_stats(),
 
   % Stats timers

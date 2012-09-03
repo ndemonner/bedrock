@@ -20,21 +20,15 @@
 %% ------------------------------------------------------------------
 
 -export ([
-  increase/3,
-  decrease/3
+  adjust/3
 ]).
 
 start_link(Args) ->
   gen_server:start_link(?MODULE, Args, []).
 
-increase(ServiceId, Amount, State) ->
+adjust(ServiceId, Amount, State) ->
   poolboy:transaction(meter_pool, fun(Meter) -> 
-    gen_server:cast(Meter, {increase, ServiceId, Amount, State})
-  end).
-
-decrease(ServiceId, Amount, State) ->
-  poolboy:transaction(meter_pool, fun(Meter) -> 
-    gen_server:cast(Meter, {decrease, ServiceId, Amount, State})
+    gen_server:cast(Meter, {adjust, ServiceId, Amount, State})
   end).
 
 %% ------------------------------------------------------------------
@@ -47,14 +41,10 @@ init(_Args) ->
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
 
-handle_cast({increase, ServiceId, Amount, HState}, State) ->
+handle_cast({adjust, ServiceId, Amount, HState}, State) ->
   % First we do the usage increment
-  DUC = adjust(add, ServiceId, Amount, HState),
+  DUC = adjust_internal(ServiceId, Amount, HState),
   % then check if need upgrade
-  {noreply, State};
-
-handle_cast({decrease, ServiceId, Amount, HState}, State) ->
-  _DUC = adjust(sub, ServiceId, Amount, HState),
   {noreply, State};
 
 handle_cast(_Msg, State) ->
@@ -69,21 +59,14 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
 
-adjust(Mode, ServiceId, Amount, HState) ->
+adjust_internal(ServiceId, Amount, HState) ->
   DeveloperId  = proplists:get_value(developer_id, HState),
-  Tables       = <<"developer_usage_constraints, usage_constraints">>,
-  DevIdSql     = <<"developer_usage_constraints.developer_id = $1">>,
-  ServIdSql    = <<"usage_constraints.service_id = $2">>,
-  DUCSql       = <<"developer_usage_constraints.usage_constraint_id = usage_constraints.id">>,
-  Where        = list_to_binary(io_lib:format("~s AND ~s AND ~s", [DevIdSql, ServIdSql, DUCSql])),
-  Params       = [DeveloperId, ServiceId],
-  {ok, [DUC]}  = bedrock_pg:find(Tables, Where, Params),
+  Where = <<"developer_id = $1 AND service_id = $2">>,
+  Params = [DeveloperId, ServiceId],
+  {ok, [DUC]}  = bedrock_pg:find(<<"developer_usage_constraints">>, Where, Params),
   DUCId        = proplists:get_value(<<"id">>, DUC),
   CurrentUsage = proplists:get_value(<<"usage">>, DUC),
-  NewUsage     = case Mode of
-    add -> CurrentUsage + Amount;
-    sub -> CurrentUsage - Amount
-  end,
+  NewUsage     = CurrentUsage + Amount,
   {ok, UpdatedDUC} = bedrock_pg:update(<<"developer_usage_constraints">>, DUCId, [{<<"usage">>, NewUsage}]),
-  UpdatedDUC.
+  {ok, UpdatedDUC}.
 

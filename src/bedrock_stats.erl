@@ -3,7 +3,7 @@
   store_response_time/1,
   reset_stats/0,
   message_sent/0,
-  fact_stored/0,
+  object_stored/0,
   event_stored/0,
   rpc_made/0,
   perform_stats_aggregation/0,
@@ -27,23 +27,23 @@ reset_stats() ->
   bedrock_redis:set(Pid, <<"response-time-sum">>, 0),
   bedrock_redis:set(Pid, <<"response-total">>, 0),
   bedrock_redis:set(Pid, <<"message-sum">>, 0),
-  bedrock_redis:set(Pid, <<"fact-sum">>, 0),
+  bedrock_redis:set(Pid, <<"object-sum">>, 0),
   bedrock_redis:set(Pid, <<"event-sum">>, 0),
   bedrock_redis:set(Pid, <<"rpc-sum">>, 0),
   bedrock_redis:set(Pid, <<"message-interval-total">>, 0),
-  bedrock_redis:set(Pid, <<"fact-interval-total">>, 0),
+  bedrock_redis:set(Pid, <<"object-interval-total">>, 0),
   bedrock_redis:set(Pid, <<"event-interval-total">>, 0),
   bedrock_redis:set(Pid, <<"rpc-interval-total">>, 0),
   bedrock_redis:set(Pid, <<"message-interval">>, 0),
-  bedrock_redis:set(Pid, <<"fact-interval">>, 0),
+  bedrock_redis:set(Pid, <<"object-interval">>, 0),
   bedrock_redis:set(Pid, <<"event-interval">>, 0),
   bedrock_redis:set(Pid, <<"rpc-interval">>, 0),
   bedrock_redis:end_transaction(Pid).
 
 message_sent() ->
   bedrock_redis:incr(<<"message-interval">>).
-fact_stored() ->
-  bedrock_redis:incr(<<"fact-interval">>).
+object_stored() ->
+  bedrock_redis:incr(<<"object-interval">>).
 event_stored() ->
   bedrock_redis:incr(<<"event-interval">>).
 rpc_made() ->
@@ -52,27 +52,42 @@ rpc_made() ->
 perform_stats_aggregation() ->
   Pid = bedrock_redis:start_transaction(),
   bedrock_redis:getset(Pid, <<"message-interval">>, 0),
-  bedrock_redis:getset(Pid, <<"fact-interval">>, 0),
+  bedrock_redis:getset(Pid, <<"object-interval">>, 0),
   bedrock_redis:getset(Pid, <<"event-interval">>, 0),
   bedrock_redis:getset(Pid, <<"rpc-interval">>, 0),
   [MsgInt, FactInt, EvtInt, RpcInt] = bedrock_redis:end_transaction(Pid),
 
   Pid2 = bedrock_redis:start_transaction(),
   bedrock_redis:incrby(Pid2, <<"message-sum">>, MsgInt),
-  bedrock_redis:incrby(Pid2, <<"fact-sum">>, FactInt),
+  bedrock_redis:incrby(Pid2, <<"object-sum">>, FactInt),
   bedrock_redis:incrby(Pid2, <<"event-sum">>, EvtInt),
   bedrock_redis:incrby(Pid2, <<"rpc-sum">>, RpcInt),
   Sums = bedrock_redis:end_transaction(Pid2),
 
   Pid3 = bedrock_redis:start_transaction(),
   bedrock_redis:incr(Pid3, <<"message-interval-total">>),
-  bedrock_redis:incr(Pid3, <<"fact-interval-total">>),
+  bedrock_redis:incr(Pid3, <<"object-interval-total">>),
   bedrock_redis:incr(Pid3, <<"event-interval-total">>),
   bedrock_redis:incr(Pid3, <<"rpc-interval-total">>),
   Totals = bedrock_redis:end_transaction(Pid3),
 
-  Averages = lists:zipwith(fun(Sum, Total) -> ((Sum / Total) / 10) end, Sums, Totals),
-  bedrock_redis:publish(<<"general-stats">>, Averages),
+  Stats = [
+    <<"message-average-generated">>, 
+    <<"object-average-generated">>, 
+    <<"event-average-generated">>,
+    <<"rpc-average-generated">>
+  ],
+  Averages = lists:zipwith(fun(Sum, Total) -> 
+    ((Sum / Total) / 10) 
+  end, Sums, Totals),
+
+  TupledAverages = lists:zipwith(fun(Stat, Average) -> 
+    {Stat, Average} 
+  end, Stats, Averages),
+
+  lists:foreach(fun({Stat, Average}) ->
+    bedrock_redis:publish(Stat, Average) 
+  end, TupledAverages),
 
   Pid4 = bedrock_redis:start_transaction(),
   bedrock_redis:get(Pid4, <<"response-time-sum">>),
@@ -86,6 +101,6 @@ perform_stats_aggregation() ->
   end,
 
   RTime = (RSum / RTotal1) / 1000,
-  bedrock_redis:publish(<<"response-average">>, RTime).
+  bedrock_redis:publish(<<"response-average-generated">>, RTime).
 
 aggregation_interval() -> 10.

@@ -36,7 +36,7 @@ init([]) ->
     ]}
   ],
 
-  Cowboy = cowboy:child_spec(bedrock_cowboy, 1024,
+  Cowboy = cowboy:child_spec(bedrock_cowboy, 100,
     cowboy_tcp_transport, [{port, 8080}],
     cowboy_http_protocol, [{dispatch, Dispatch}, {log, "bedrock_cowboy.log"}]
   ),

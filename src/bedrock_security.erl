@@ -8,6 +8,8 @@
   log_action/5,
   must_be_at_least/2,
   must_have_access_to/3,
+  must_be_able_to_read/2,
+  must_be_able_to_write/2,
   must_have_service/2,
   must_be_defined/2,
   must_be_unique/3,
@@ -131,7 +133,8 @@ must_be_at_least(developer, State) ->
   end.
 
 must_have_access_to(admin, Target, State) ->
-  [{<<"id">>, Id}|_] = proplists:get_value(identity, State),
+  Identity = proplists:get_value(identity, State),
+  Id = proplists:get_value(<<"id">>, Identity),
   case proplists:get_value(role, State) of
     admin ->
       case Id =:= proplists:get_value(<<"id">>, Target) of
@@ -142,7 +145,8 @@ must_have_access_to(admin, Target, State) ->
   end;
 
 must_have_access_to(developer, Target, State) ->
-  [{<<"id">>, Id}|_] = proplists:get_value(identity, State),
+  Identity = proplists:get_value(identity, State),
+  Id = proplists:get_value(<<"id">>, Identity),
   case proplists:get_value(role, State) of
     admin     -> ok;
     developer ->
@@ -154,7 +158,8 @@ must_have_access_to(developer, Target, State) ->
   end;
 
 must_have_access_to(application, Target, State) ->
-  [{<<"id">>, Id}|_] = proplists:get_value(identity, State),
+  Identity = proplists:get_value(identity, State),
+  Id = proplists:get_value(<<"id">>, Identity),
   case proplists:get_value(role, State) of
     admin     -> ok;
     developer ->
@@ -171,7 +176,8 @@ must_have_access_to(application, Target, State) ->
   end;
 
 must_have_access_to(user, Target, State) ->
-  [{<<"id">>, Id}|_] = proplists:get_value(identity, State),
+  Identity = proplists:get_value(identity, State),
+  Id = proplists:get_value(<<"id">>, Identity),
   case proplists:get_value(role, State) of
     admin     -> ok;
     developer ->
@@ -227,11 +233,15 @@ must_be_defined(Keys, Object) ->
   end.
 
 must_be_unique(Table, Key, Object) ->
-  Where = io_lib:format("~s = $1", [Key]),
-  Params = [proplists:get_value(Key, Object)],
-  case bedrock_pg:find(Table, Where, Params) of
-    {ok, []} -> ok;
-    {ok, _}  -> throw({conflict, {Key, proplists:get_value(Key, Object)}})
+  case proplists:is_defined(Key, Object) of
+    false -> ok;
+    true  ->
+      Where = io_lib:format("~s = $1", [Key]),
+      Params = [proplists:get_value(Key, Object)],
+      case bedrock_pg:find(Table, Where, Params) of
+        {ok, []} -> ok;
+        {ok, _}  -> throw({conflict, {Key, proplists:get_value(Key, Object)}})
+      end
   end.
 
 must_be_test_key_for_service(Key, ServiceId) ->
@@ -243,6 +253,40 @@ must_be_test_key_for_service(Key, ServiceId) ->
       case bedrock_pg:find(<<"test_access_grants">>, Where, Params) of
         {ok, []}            -> throw(requires_key);
         {ok, [_FoundGrant]} -> ok
+      end
+  end.
+
+must_be_able_to_read(Object, State) ->
+  Identity = proplists:get_value(identity, State),
+  Id = proplists:get_value(<<"id">>, Identity),
+  case Id =:= proplists:get_value(<<"user_id">>, Object) of
+    true  -> ok;
+    false ->
+      case proplists:get_value(<<"readers">>, Object) of
+        [0]   -> ok;
+        [-1]  -> throw(unauthorized);
+        List  -> 
+          case lists:member(Id, List) of
+            false -> throw(unauthorized);
+            true  -> ok
+          end
+      end
+  end.
+
+must_be_able_to_write(Object, State) ->
+  Identity = proplists:get_value(identity, State),
+  Id = proplists:get_value(<<"id">>, Identity),
+  case Id =:= proplists:get_value(<<"user_id">>, Object) of
+    true  -> ok;
+    false ->
+      case proplists:get_value(<<"writers">>, Object) of
+        [0]   -> ok;
+        [-1]  -> throw(unauthorized);
+        List  -> 
+          case lists:member(Id, List) of
+            false -> throw(unauthorized);
+            true  -> ok
+          end
       end
   end.
 

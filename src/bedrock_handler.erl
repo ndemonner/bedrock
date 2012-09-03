@@ -10,10 +10,8 @@ websocket_init(_TransportName, Req, _Opts) ->
   % create a dedicated redis client for pub/sub
   {ok, PubsubClient} = eredis_sub:start_link([{host, "redis.bedrock.io"}]),
   ok = eredis_sub:controlling_process(PubsubClient, self()),
-
-  bedrock_redis:incr(<<"active-persons">>),
+  bedrock_redis:incr(<<"persons-connected">>),
   bedrock_redis:publish(<<"person-connected">>, undefined),
-
   {ok, Req, [{pid, self()}, {pubsub_client, PubsubClient}], hibernate}.
 
 websocket_handle({binary, Msg}, Req, State) ->
@@ -32,9 +30,7 @@ websocket_info({send, Msg, NewState}, Req, _State) ->
 websocket_info({message, Channel, Message, _Pid}, Req, State) ->
   PSClient = proplists:get_value(pubsub_client, State),
   eredis_sub:ack_message(PSClient),
-
   Term = binary_to_term(Message),
-
   {ok, Packed} = msgpack:pack([2, Channel, maybe_wrap(Term)]),
   {reply, {binary, Packed}, Req, State, hibernate};
 
@@ -58,9 +54,17 @@ websocket_info(Msg, Req, State) ->
   {ok, Req, State, hibernate}.
 
 websocket_terminate(_Reason, _Req, State) ->
-  bedrock_redis:decr(<<"active-persons">>),
+  bedrock_redis:decr(<<"persons-connected">>),
   bedrock_redis:publish(<<"person-disconnected">>, undefined),
-
+  % If they have an identity, publish that they've signed-off
+  case proplists:get_value(identity, State) of
+    undefined -> ok;
+    Person    -> 
+      Role = proplists:get_value(role, State),
+      RoleList = atom_to_list(Role),
+      MessageName = list_to_binary(RoleList++"-signed-off"),
+      bedrock_redis:publish(MessageName, Person)
+  end,
   eredis_sub:stop(proplists:get_value(pubsub_client, State)),
   ok.
 

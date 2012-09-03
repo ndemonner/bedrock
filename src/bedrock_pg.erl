@@ -175,7 +175,7 @@ handle_call({insert, Table, Row}, _From, State) ->
   InsertCols = [binary_to_list(Col) || {Col, _} <- Row],
   InsertColsSql = string:join(InsertCols, ", "),
 
-  InsertParams = [Val || {_, Val} <- Row],
+  InsertParams = [maybe_number(Val) || {_, Val} <- Row],
   InsertVars = [io_lib:format("$~w", [Var]) || Var <- lists:seq(1, length(InsertParams))],
   InsertVarsSql = string:join(InsertVars, ", "),
 
@@ -204,7 +204,7 @@ handle_call({update, Table, Id, PreChanges}, _From, State) ->
   Changes = [{<<"updated">>, calendar:now_to_universal_time(now())} | PreChanges],
 
   Cols = [binary_to_list(Col) || {Col, _} <- Changes],
-  Params = [Val || {_, Val} <- Changes],
+  Params = [maybe_number(Val) || {_, Val} <- Changes],
 
   Vars = [io_lib:format("$~w", [Var]) || Var <- lists:seq(1, length(Params))],
   ColVars = lists:zip(Cols, Vars),
@@ -295,6 +295,13 @@ code_change(_OldVsn, State, _Extra) ->
 %% ------------------------------------------------------------------
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
+
+maybe_number(Value) ->
+  try list_to_integer(binary_to_list(Value)) of
+    Integer -> Integer
+  catch
+    _:_ -> Value
+  end.
 
 maybe_convert(Value) ->
   case Value of 
