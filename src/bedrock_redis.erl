@@ -26,7 +26,13 @@
   decr/2,
   publish/2,
   start_transaction/0,
-  end_transaction/1 
+  end_transaction/1,
+  lpush/2,
+  lpush/3,
+  ltrim/3,
+  ltrim/4,
+  lrange/3,
+  lrange/4
 ]).
 
 %% ------------------------------------------------------------------
@@ -118,6 +124,27 @@ getset(Key, Value) ->
 getset(Worker, Key, Value) ->
   gen_server:call(Worker, {getset, Key, Value}).
 
+lpush(Key, Value) ->
+  poolboy:transaction(redis, fun(Worker) ->
+    gen_server:call(Worker, {lpush, Key, Value})
+  end).
+lpush(Worker, Key, Value) ->
+  gen_server:call(Worker, {lpush, Key, Value}).
+
+ltrim(Key, Start, Finish) ->
+  poolboy:transaction(redis, fun(Worker) ->
+    gen_server:call(Worker, {ltrim, Key, Start, Finish})
+  end).
+ltrim(Worker, Key, Start, Finish) ->
+  gen_server:call(Worker, {ltrim, Key, Start, Finish}).
+
+lrange(Key, Start, Finish) ->
+  poolboy:transaction(redis, fun(Worker) ->
+    gen_server:call(Worker, {lrange, Key, Start, Finish})
+  end).
+lrange(Worker, Key, Start, Finish) ->
+  gen_server:call(Worker, {lrange, Key, Start, Finish}).
+
 %% ------------------------------------------------------------------
 %% gen_server Function Definitions
 %% ------------------------------------------------------------------
@@ -167,10 +194,25 @@ handle_call({decr, Key}, _From, State) ->
   {ok, Result} = eredis:q(Connection, ["DECR", Key]),
   {reply, format(Result), State};
 
+handle_call({lpush, Key, Value}, _From, State) ->
+  Connection = proplists:get_value(connection, State),
+  {ok, Result} = eredis:q(Connection, ["LPUSH", Key, Value]),
+  {reply, format(Result), State};
+
+handle_call({ltrim, Key, Start, Finish}, _From, State) ->
+  Connection = proplists:get_value(connection, State),
+  {ok, Result} = eredis:q(Connection, ["LTRIM", Key, Start, Finish]),
+  {reply, format(Result), State};
+
+handle_call({lrange, Key, Start, Finish}, _From, State) ->
+  Connection = proplists:get_value(connection, State),
+  {ok, Result} = eredis:q(Connection, ["LRANGE", Key, Start, Finish]),
+  {reply, format(Result), State};
+
 handle_call({publish, Channel, Message}, _From, State) ->
   Connection = proplists:get_value(connection, State),
   {ok, Result} = eredis:q(Connection, ["PUBLISH", Channel, term_to_binary(Message)]),
-  bedrock_stats:message_sent(),
+  bedrock_metrics:increment_counter_without_message(<<"_internal.counters.messages">>),
   {reply, format(Result), State};
 
 handle_call(start_transaction, _From, State) ->

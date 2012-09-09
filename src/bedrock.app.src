@@ -14,11 +14,6 @@
       ], [
         {module, bedrock_router}
       ]},      
-      {meter_pool, [
-        {size, 256}
-      ], [
-        {module, bedrock_meter}
-      ]},
       {pg, [
         {size, 10},
         {max_overflow, 20}
@@ -28,8 +23,8 @@
         {database, "bedrock"}
       ]},
       {redis, [
-        {size, 10},
-        {max_overflow, 20}
+        {size, 30},
+        {max_overflow, 60}
       ], [
         {module, bedrock_redis},
         {hostname, "redis.bedrock.io"}

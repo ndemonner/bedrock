@@ -5,7 +5,8 @@
   generate_uuid/0, 
   generate_key/1,
   invalidate_key/1,
-  log_action/5,
+  log/5,
+  consume_test_key/1,
   must_be_at_least/2,
   must_have_access_to/3,
   must_be_able_to_read/2,
@@ -75,12 +76,12 @@ invalidate_key(Key) ->
 generate_uuid() ->
   base32:encode(uuid(), [lower, nopad]).
 
-log_action(admin, Who, Interface, Method, Args) ->
+log(admin, Who, Interface, Method, Args) ->
   % convert the args to json and then prettify it for easy reading
   Args1 = maybe_strip_password(Args),
   Json = jsx:encode(Args1),
   PrettyJson = jsx:prettify(Json),
-  log_action(
+  log(
     <<"administrator">>,
     proplists:get_value(<<"id">>, Who),
     proplists:get_value(<<"email">>, Who),
@@ -89,11 +90,11 @@ log_action(admin, Who, Interface, Method, Args) ->
     PrettyJson
   );
 
-log_action(developer, Who, Interface, Method, Args) ->
+log(developer, Who, Interface, Method, Args) ->
   Args1 = maybe_strip_password(Args),
   Json = jsx:encode(Args1),
   PrettyJson = jsx:prettify(Json),
-  log_action(
+  log(
     <<"developer">>,
     proplists:get_value(<<"id">>, Who),
     proplists:get_value(<<"email">>, Who),
@@ -102,7 +103,7 @@ log_action(developer, Who, Interface, Method, Args) ->
     PrettyJson
   ).
 
-log_action(ActorType, Id, Email, Interface, Method, Args) ->
+log(ActorType, Id, Email, Interface, Method, Args) ->
   Action = [
     {<<"actor">>, ActorType},
     {<<"actor_id">>, Id},
@@ -111,13 +112,7 @@ log_action(ActorType, Id, Email, Interface, Method, Args) ->
     {<<"method">>, Method},
     {<<"args">>, Args}
   ],
-  {ok, Result} = bedrock_pg:insert('logged_actions', Action),
-  case ActorType of 
-    <<"developer">>     -> 
-      bedrock_redis:publish(<<"developer-action-logged">>, Result);
-    <<"administrator">> -> 
-      bedrock_redis:publish(<<"admin-action-logged">>, Result)
-  end.
+  bedrock_metrics:add_history_value(<<"_internal.histories.logs">>, Action).
 
 must_be_at_least(admin, State) ->
   case proplists:get_value(role, State) of
@@ -215,7 +210,7 @@ must_have_service(Service, State) ->
   end.
 
 clear_logs() ->
-  bedrock_pg:delete_all(<<"logged_actions">>).
+  bedrock_metrics:reset(<<"_internal.histories.logs">>).
 
 hash(Pwd) ->
   {ok, Salt} = bcrypt:gen_salt(12),
@@ -246,12 +241,12 @@ must_be_unique(Table, Key, Object) ->
 
 must_be_test_key_for_service(Key, ServiceId) ->
   case Key of
-    undefined -> throw(requires_key);
+    undefined -> throw({requires_key, ServiceId});
     _Other    ->
       Where = <<"service_id = $1 AND key = $2">>,
       Params = [ServiceId, Key],
       case bedrock_pg:find(<<"test_access_grants">>, Where, Params) of
-        {ok, []}            -> throw(requires_key);
+        {ok, []}            -> throw({requires_key, ServiceId});
         {ok, [_FoundGrant]} -> ok
       end
   end.
@@ -290,6 +285,12 @@ must_be_able_to_write(Object, State) ->
       end
   end.
 
+consume_test_key(Key) ->
+  Where = <<"key = $1">>,
+  Params = [Key],
+  {ok, [Grant]} = bedrock_pg:find(<<"test_access_grants">>, Where, Params),
+  bedrock_pg:delete(<<"test_access_grants">>, proplists:get_value(<<"id">>, Grant)).
+
 uuid() ->
   random:seed(now()), 
   v4(random:uniform(round(math:pow(2, 48))) - 1, 
@@ -326,15 +327,9 @@ accessible(Channel, Role) ->
 protected_channels() -> [
   {<<"admin-signed-on">>, admin},
   {<<"admin-signed-off">>, admin},
-  {<<"admin-action-logged">>, admin},
-  {<<"admin-created">>, admin},
-  {<<"admin-deleted">>, admin},
 
   {<<"developer-signed-on">>, developer},
-  {<<"developer-signed-off">>, developer},
-  {<<"developer-action-logged">>, developer},
-  {<<"developer-created">>, developer},
-  {<<"developer-deleted">>, developer}
+  {<<"developer-signed-off">>, developer}
 ].
 
 maybe_strip_password([{_,_}|_]=Args) ->

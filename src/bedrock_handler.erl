@@ -10,14 +10,14 @@ websocket_init(_TransportName, Req, _Opts) ->
   % create a dedicated redis client for pub/sub
   {ok, PubsubClient} = eredis_sub:start_link([{host, "redis.bedrock.io"}]),
   ok = eredis_sub:controlling_process(PubsubClient, self()),
-  bedrock_redis:incr(<<"persons-connected">>),
-  bedrock_redis:publish(<<"person-connected">>, undefined),
+  
+  bedrock_metrics:increment_counter(<<"_internal.counters.connections">>),
+  
   {ok, Req, [{pid, self()}, {pubsub_client, PubsubClient}], hibernate}.
 
 websocket_handle({binary, Msg}, Req, State) ->
-  bedrock_stats:rpc_made(),
   poolboy:transaction(router_pool, fun(Router) -> 
-    gen_server:cast(Router, {handle, Msg, [{response_start_time, now()} | State]})
+    gen_server:cast(Router, {handle, Msg, State})
   end),
   {ok, Req, State, hibernate};
 
@@ -25,7 +25,7 @@ websocket_handle(_Data, Req, State) ->
   {ok, Req, State, hibernate}.
 
 websocket_info({send, Msg, NewState}, Req, _State) ->
-  {reply, {binary, Msg}, Req, bedrock_stats:store_response_time(NewState), hibernate};
+  {reply, {binary, Msg}, Req, NewState, hibernate};
 
 websocket_info({message, Channel, Message, _Pid}, Req, State) ->
   PSClient = proplists:get_value(pubsub_client, State),
@@ -54,8 +54,8 @@ websocket_info(Msg, Req, State) ->
   {ok, Req, State, hibernate}.
 
 websocket_terminate(_Reason, _Req, State) ->
-  bedrock_redis:decr(<<"persons-connected">>),
-  bedrock_redis:publish(<<"person-disconnected">>, undefined),
+  bedrock_metrics:decrement_counter(<<"_internal.counters.connections">>),
+
   % If they have an identity, publish that they've signed-off
   case proplists:get_value(identity, State) of
     undefined -> ok;

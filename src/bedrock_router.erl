@@ -40,6 +40,10 @@ handle_cast({handle, Msg, ConnectionState}, State) ->
       %% Req/rep call, so we get the unique id for the call,
       %% and after it's been routed and answered we pack it
       %% back up and send it on its way.
+
+      bedrock_metrics:increment_counter_without_message(<<"_internal.counters.rpcs">>),
+      Start = erlang:now(),
+
       [_,Id,_,_] = Unpacked,
       Response = route(rpc_to_proplist(request, Unpacked), ConnectionState),
       {_, _, RetState} = Response,
@@ -53,7 +57,10 @@ handle_cast({handle, Msg, ConnectionState}, State) ->
       {ok, Packed} = msgpack:pack([1, Id, {NormalizedResponse}]),
 
       Pid = proplists:get_value(pid, ConnectionState),
-      Pid ! {send, Packed, RetState};
+      Pid ! {send, Packed, RetState},
+
+      Measured = timer:now_diff(erlang:now(), Start),
+      bedrock_metrics:add_time_series_value_without_message(<<"_internal.series.responses">>, Measured / 1000);
     2 ->
       route(rpc_to_proplist(notify, Unpacked), ConnectionState)
   end,
@@ -84,12 +91,12 @@ route(RPC, State) ->
   try erlang:apply(Interface, Function, Params) of
     Anything -> Anything
   catch
-    throw:unauthorized   -> {error, unauthorized_message(), State};
-    throw:unavailable    -> {error, unavailable_message(), State};
-    throw:requires_key   -> {error, requires_key_message(), State};
-    throw:{undefined, M} -> {error, undefined_message(M), State};
-    throw:{conflict, C}  -> {error, conflict_message(C), State};
-    _:_                  -> {error, general_error_message(), State}
+    throw:unauthorized       -> {error, unauthorized_message(), State};
+    throw:unavailable        -> {error, unavailable_message(), State};
+    throw:{requires_key, Id} -> {error, requires_key_message(Id), State};
+    throw:{undefined, M}     -> {error, undefined_message(M), State};
+    throw:{conflict, C}      -> {error, conflict_message(C), State};
+    _:_                      -> {error, general_error_message(), State}
   end.
   % erlang:apply(Interface, Function, Params).
 
@@ -112,8 +119,10 @@ unauthorized_message() ->
 unavailable_message() ->
   <<"You have not added this add-on service to your account.">>.
 
-requires_key_message() ->
-  <<"This service currently requires a valid test access key.">>.
+requires_key_message(Id) ->
+  {ok, Service} = bedrock_pg:get(<<"services">>, Id),
+  Message = io_lib:format("The ~s service currently requires a valid test access key.", [proplists:get_value(<<"name">>, Service)]),
+  list_to_binary(Message).
 
 undefined_message(Undefined) ->
   Missing = string:join(Undefined, ", "),
