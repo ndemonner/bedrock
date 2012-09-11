@@ -2,7 +2,6 @@
 -export ([
   sign_in/2, 
   sign_out/1,
-  get_identity/1,
   establish_identity/2,
   clear_logs/1,
   create/2
@@ -13,11 +12,17 @@ create(Person, State) ->
   bedrock_security:must_be_defined([<<"email">>, <<"password">>], Person),
   bedrock_security:must_be_unique(<<"administrators">>, <<"email">>, Person),
 
+  % Use bcrypt with 12 rounds to hash the password, and then replace the incoming plaintext with
+  % the corresponding hashtext.
   HashedPass = {<<"password">>, bedrock_security:hash(proplists:get_value(<<"password">>, Person))},
   Person1 = lists:keyreplace(<<"password">>, 1, Person, HashedPass),
 
+  % Insert a new admin row. We don't check for errors here because we've already validated
+  % the admin object above.
   {ok, Result} = bedrock_pg:insert(<<"administrators">>, Person1),
 
+  % Make sure we log this action--we don't want anyone creating admins without full
+  % accountability.
   Actor = proplists:get_value(identity, State),
   bedrock_security:log(admin, Actor, admin, create_admin, Person1),
 
@@ -27,6 +32,9 @@ create(Person, State) ->
   {ok, Result, State}.
 
 sign_in(Credentials, State) ->
+  % If bedrock security successfully authenticates based on the provided credentials,
+  % we create a session key, and attach the identity of the now logged-in user to
+  % the connection state.
   case bedrock_security:identify(admin, Credentials) of
     {ok, Person} -> 
       Key = bedrock_security:generate_key(Person),
@@ -36,9 +44,11 @@ sign_in(Credentials, State) ->
       bedrock_redis:publish(<<"admin-signed-in">>, Person),
 
       IdentityT = {identity, Person},
-      RoleT = {role, admin},
-      KeyT = {key, Key},
-      ServT = {available_services, ['*']},
+      RoleT     = {role, admin},
+      KeyT      = {key, Key},
+
+      % Administrators can use any service.
+      ServT     = {available_services, ['*']},
 
       {ok, Reply, [IdentityT, RoleT, KeyT, ServT | State]};
     error -> {error, <<"You must enter a valid set of credentials.">>, State}
@@ -57,9 +67,15 @@ sign_out(State) ->
 
   {ok, undefined, State3}.
 
+%% This method allows an already authenticated user (possessing a valid session key)
+%% to associate a new connection with their identity. This way they don't have to re-sign-in
+%% if they drop the connection to Bedrock momentarily.
 establish_identity(Key, State) ->
+  % In order to avoid needless db hits, we check to make sure that this connection
+  % doesn't already have an identity associated with it.
   case proplists:get_value(identity, State) of
     undefined -> 
+      % The rest of this mirrors admin.sign-in above.
       case bedrock_security:identify(admin, Key) of
         {ok, Person} ->
           Reply = [{<<"identity">>, Person}, {<<"key">>, Key}],
@@ -74,13 +90,8 @@ establish_identity(Key, State) ->
       end;
     Identity -> {ok, [{<<"identity">>, Identity}], State}
   end.
-  
-get_identity(State) ->
-  case proplists:get_value(identity, State) of
-    undefined -> {error, <<"You have not been identified by Bedrock.">>, State};
-    Person    -> {ok, Person, State}
-  end.
 
+% Resets the _internal.histories.logs history.
 clear_logs(State) ->
   bedrock_security:must_be_at_least(admin, State),
   bedrock_security:clear_logs(),

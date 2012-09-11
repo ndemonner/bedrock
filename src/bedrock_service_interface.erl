@@ -5,7 +5,6 @@
   subscriber_count/2,
   tier_subscriber_count/2,
   set_testing/3,
-  subscribe/2,
   create/2,
   update/3,
   delete/2,
@@ -13,9 +12,6 @@
   delete_tier/2,
   update_tier/3
 ]).
-
-subscribe(ServiceId, State) ->
-  undefined.
 
 retrieve_all(State) ->
   {ok, Services} = bedrock_pg:get_all(<<"services">>, <<"ORDER BY id ASC">>),
@@ -25,23 +21,23 @@ tiers(ServiceId, State) ->
   Where = <<"service_id = $1">>,
   Params = [ServiceId],
   Conditions = <<"ORDER BY tier ASC">>,
-  {ok, Tiers} = bedrock_pg:find(<<"usage_constraints">>, Where, Params, Conditions),
+  {ok, Tiers} = bedrock_pg:find(<<"constraints">>, Where, Params, Conditions),
   {ok, Tiers, State}.
 
 subscriber_count(ServiceId, State) ->
   bedrock_security:must_be_at_least(admin, State),
 
-  Where = <<"usage_constraints.service_id = $1 AND developer_usage_constraints.usage_constraint_id = usage_constraints.id">>,
+  Where = <<"constraints.service_id = $1 AND subscriptions.constraint_id = constraints.id">>,
   Params = [ServiceId],
-  {ok, Count} = bedrock_pg:count_where(<<"developer_usage_constraints, usage_constraints">>, Where, Params),
+  {ok, Count} = bedrock_pg:count_where(<<"subscriptions, constraints">>, Where, Params),
   {ok, Count, State}.
 
 tier_subscriber_count(TierId, State) ->
   bedrock_security:must_be_at_least(admin, State),
 
-  Where = <<"developer_usage_constraints.usage_constraint_id = $1">>,
+  Where = <<"subscriptions.constraint_id = $1">>,
   Params = [TierId],
-  {ok, Count} = bedrock_pg:count_where(<<"developer_usage_constraints">>, Where, Params),
+  {ok, Count} = bedrock_pg:count_where(<<"subscriptions">>, Where, Params),
   {ok, Count, State}.
 
 set_testing(ServiceId, Bool, State) ->
@@ -109,11 +105,11 @@ create_tier(Tier, State) ->
   Count = length(Tiers),
 
   Tier1 = [{<<"tier">>, Count}|Tier],
-  {ok, _Result} = bedrock_pg:insert(<<"usage_constraints">>, Tier1),
+  {ok, Result} = bedrock_pg:insert(<<"constraints">>, Tier1),
 
   Actor = proplists:get_value(identity, State),
-  bedrock_security:log(admin, Actor, service, add_tier, Tier1),
-  bedrock_redis:publish(<<"tier-created">>, Tier1),
+  bedrock_security:log(admin, Actor, service, add_tier, Result),
+  bedrock_redis:publish(<<"tier-created">>, Result),
 
   {ok, undefined, State}.
   
@@ -122,8 +118,8 @@ delete_tier(TierId, State) ->
 
   case tier_subscriber_count(TierId, State) of
     {ok, 0, State} -> 
-      {ok, Tier} = bedrock_pg:get(<<"usage_constraints">>, TierId),
-      bedrock_pg:delete(<<"usage_constraints">>, TierId),
+      {ok, Tier} = bedrock_pg:get(<<"constraints">>, TierId),
+      bedrock_pg:delete(<<"constraints">>, TierId),
       Actor = proplists:get_value(identity, State),
       bedrock_security:log(admin, Actor, service, remove_tier, Tier),
       bedrock_redis:publish(<<"tier-deleted">>, Tier),
@@ -135,7 +131,7 @@ delete_tier(TierId, State) ->
 update_tier(TierId, Changes, State) ->
   bedrock_security:must_be_at_least(admin, State),
 
-  {ok, Result} = bedrock_pg:update(<<"usage_constraints">>, TierId, Changes),
+  {ok, Result} = bedrock_pg:update(<<"constraints">>, TierId, Changes),
 
   Actor = proplists:get_value(identity, State),
   bedrock_security:log(admin, Actor, service, update_tier, Changes),

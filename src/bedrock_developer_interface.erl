@@ -18,15 +18,15 @@ create(DeveloperRaw, State) ->
   bedrock_security:must_be_unique(<<"developers">>, <<"email">>, DeveloperRaw),  
 
   HashedPass = {<<"password">>, bedrock_security:hash(proplists:get_value(<<"password">>, DeveloperRaw))},
-  Developer = lists:keyreplace(<<"password">>, 1, DeveloperRaw, HashedPass),
+  Developer  = lists:keyreplace(<<"password">>, 1, DeveloperRaw, HashedPass),
 
   {value, {<<"card">>, Card}, Developer1} = lists:keytake(<<"card">>, 1, Developer),
   {value, {<<"activations">>, ServicePairs}, Developer2} = lists:keytake(<<"activations">>, 1, Developer1),
 
   % Validate the ServicePairs if necessary
   lists:foreach(fun({Pair}) ->
-    Id = proplists:get_value(<<"id">>, Pair), 
-    Key = proplists:get_value(<<"key">>, Pair), 
+    Id            = proplists:get_value(<<"id">>, Pair),
+    Key           = proplists:get_value(<<"key">>, Pair),
     {ok, Service} = bedrock_pg:get(<<"services">>, Id),
     case proplists:get_value(<<"testing">>, Service) of
       true  -> bedrock_security:must_be_test_key_for_service(Key, Id);
@@ -35,7 +35,7 @@ create(DeveloperRaw, State) ->
   end, ServicePairs),
 
   {ok, CustomerId} = bedrock_stripe:create_customer(Card, Developer2),
-  Developer3 = [{<<"customer_id">>, CustomerId}|Developer2],
+  Developer3       = [{<<"customer_id">>, CustomerId}|Developer2],
 
   {ok, Saved} = bedrock_pg:insert(<<"developers">>, Developer3),
  
@@ -46,17 +46,7 @@ create(DeveloperRaw, State) ->
   lists:foreach(fun(Pair) ->
     Id = proplists:get_value(<<"id">>, Pair), 
     Key = proplists:get_value(<<"key">>, Pair), 
-    
-    Where = <<"service_id = $1 AND tier = 0">>,
-    Params = [Id],
-    {ok, [UC]} = bedrock_pg:find(<<"usage_constraints">>, Where, Params),
-    DUC = [
-      {<<"developer_id">>, proplists:get_value(<<"id">>, Saved)},
-      {<<"usage_constraint_id">>, proplists:get_value(<<"id">>, UC)},
-      {<<"service_id">>, Id}
-    ],
-    bedrock_pg:insert(<<"developer_usage_constraints">>, DUC),
-    bedrock_security:consume_test_key(Key)
+    bedrock_service_interface:subscribe(Id, State)
   end, ServicePairs),
 
   % Sign them in
@@ -66,18 +56,18 @@ create(DeveloperRaw, State) ->
   bedrock_security:log(developer, Saved, developer, sign_in, Saved),
   bedrock_redis:publish(<<"developer-signed-in">>, Saved),
 
-  IdentityT = {identity, Saved},
-  RoleT = {role, developer},
-  KeyT = {key, Key},
+  IdentityTup = {identity, Saved},
+  RoleTup = {role, developer},
+  KeyTup = {key, Key},
 
-  {ok, DUCs, _} = subscriptions([IdentityT]),
-  Services = lists:map(fun(DUC) -> 
-    {ok, Service} = bedrock_pg:get(<<"services">>, proplists:get_value(<<"service_id">>, DUC)),
+  {ok, Subs, _} = subscriptions([IdentityTup]),
+  Services = lists:map(fun(Sub) -> 
+    {ok, Service} = bedrock_pg:get(<<"services">>, proplists:get_value(<<"service_id">>, Sub)),
     proplists:get_value(<<"name">>, Service)
-  end, DUCs),
-  ServT = {available_services, Services},
+  end, Subs),
+  ServTup = {available_services, Services},
 
-  {ok, Reply, [IdentityT, RoleT, KeyT, ServT | State]}.
+  {ok, Reply, [IdentityTup, RoleTup, KeyTup, ServTup | State]}.
 
 delete(DeveloperId, State) ->
   undefined.
@@ -85,24 +75,25 @@ delete(DeveloperId, State) ->
 sign_in(Credentials, State) ->
   case bedrock_security:identify(developer, Credentials) of
     {ok, Person} -> 
-      Key = bedrock_security:generate_key(Person),
+      Key   = bedrock_security:generate_key(Person),
       Reply = [{<<"identity">>, Person}, {<<"key">>, Key}],
 
       bedrock_security:log(developer, Person, developer, sign_in, Person),
       bedrock_redis:publish(<<"developer-signed-in">>, Person),
 
-      IdentityT = {identity, Person},
-      RoleT = {role, developer},
-      KeyT = {key, Key},
+      IdentityTup = {identity, Person},
+      RoleTup     = {role, developer},
+      KeyTup      = {key, Key},
 
-      {ok, DUCs, _} = subscriptions([IdentityT]),
-      Services = lists:map(fun(DUC) -> 
-        {ok, Service} = bedrock_pg:get(<<"services">>, proplists:get_value(<<"service_id">>, DUC)),
+      {ok, Subs, _} = subscriptions([IdentityTup]),
+
+      Services = lists:map(fun(Sub) -> 
+        {ok, Service} = bedrock_pg:get(<<"services">>, proplists:get_value(<<"service_id">>, Sub)),
         proplists:get_value(<<"name">>, Service)
-      end, DUCs),
-      ServT = {available_services, Services},
+      end, Subs),
+      ServTup = {available_services, Services},
 
-      {ok, Reply, [IdentityT, RoleT, KeyT, ServT | State]};
+      {ok, Reply, [IdentityTup, RoleTup, KeyTup, ServTup | State]};
     error -> {error, <<"You must enter a valid set of credentials.">>, State}
   end.
 
@@ -126,18 +117,18 @@ establish_identity(Key, State) ->
         {ok, Person} ->
           Reply = [{<<"identity">>, Person}, {<<"key">>, Key}],
 
-          IdentityTuple  = {identity, Person},
-          RoleTuple      = {role, developer},
-          KeyTuple       = {key, Key},
+          IdentityTup  = {identity, Person},
+          RoleTup      = {role, developer},
+          KeyTup       = {key, Key},
 
-          {ok, DUCs, _} = subscriptions(State),
-          Services = lists:map(fun(DUC) -> 
-            {ok, Service} = bedrock_pg:get(<<"services">>, proplists:get_value(<<"service_id">>, DUC)),
+          {ok, Subs, _} = subscriptions(State),
+          Services = lists:map(fun(Sub) -> 
+            {ok, Service} = bedrock_pg:get(<<"services">>, proplists:get_value(<<"service_id">>, Sub)),
             proplists:get_value(<<"name">>, Service)
-          end, DUCs),
-          ServTuple      = {available_services, Services},
+          end, Subs),
+          ServTup      = {available_services, Services},
 
-          {ok, Reply, [IdentityTuple, RoleTuple, KeyTuple, ServTuple | State]};
+          {ok, Reply, [IdentityTup, RoleTup, KeyTup, ServTup | State]};
         error -> {error, <<"You provided an invalid key.">>, State}
       end;
     Identity -> {ok, [{<<"identity">>, Identity}], State}
@@ -152,49 +143,64 @@ get_identity(State) ->
 update(Changes, State) ->
   undefined.
 
-activate_service(ServiceId, State) ->
+activate_service(IdKeyPair, State) ->
   bedrock_security:must_be_at_least(developer, State),
+
+  Id  = proplists:get_value(<<"id">>, IdKeyPair),
+  Key = proplists:get_value(<<"key">>, IdKeyPair),
+
+  {ok, Service} = bedrock_pg:get(<<"services">>, Id),
+  case proplists:get_value(<<"testing">>, Service) of
+    true  -> bedrock_security:must_be_test_key_for_service(Key, Id);
+    false -> ok
+  end,
+
   Identity = proplists:get_value(identity, State),
+
   Where = <<"service_id = $1 AND tier = 0">>,
-  Params = [ServiceId],
-  {ok, UC} = bedrock_pg:find(<<"usage_constraints">>, Where, Params),
-  DUC = [
-    {<<"usage_constraint_id">>, proplists:get_value(<<"id">>, UC)},
+  Params = [Id],
+  {ok, Constraint} = bedrock_pg:find(<<"constraints">>, Where, Params),
+  Sub = [
+    {<<"constraint_id">>, proplists:get_value(<<"id">>, Constraint)},
     {<<"developer_id">>, proplists:get_value(<<"id">>, Identity)},
-    {<<"service_id">>, ServiceId}
+    {<<"service_id">>, Id}
   ],
-  {ok, Result} = bedrock_pg:insert(<<"developer_usage_constraints">>, DUC),
-  bedrock_stripe:modify_plan(proplists:get_value(<<"cost">>, UC), Identity),
+  {ok, Result} = bedrock_pg:insert(<<"subscriptions">>, Sub),
+  bedrock_stripe:modify_plan(proplists:get_value(<<"cost">>, Constraint), Identity),
+
+  NewServices = [proplists:get_value(<<"name">>, Service)|proplists:get_value(available_services, State)],
+  NewState    = lists:keyreplace(available_services, 1, State, {available_services, NewServices}),
+
   {ok, Result, State}.
 
 deactivate_service(ServiceId, State) ->
   bedrock_security:must_be_at_least(developer, State),
-  Identity = proplists:get_value(identity, State),
-  Params = [proplists:get_value(<<"id">>, Identity), ServiceId],
-  {ok, [DUC]} = bedrock_pg:find(<<"developer_usage_constraints">>, <<"developer_id = $1 AND service_id = $2">>, Params),
-  bedrock_pg:delete(<<"developer_usage_constraints">>, proplists:get_value(<<"id">>, DUC)),
-  bedrock_stripe:modify_plan(-(proplists:get_value(<<"cost">>, DUC)), Identity),
+  Identity    = proplists:get_value(identity, State),
+  Params      = [proplists:get_value(<<"id">>, Identity), ServiceId],
+  {ok, [Sub]} = bedrock_pg:find(<<"subscriptions">>, <<"developer_id = $1 AND service_id = $2">>, Params),
+  bedrock_pg:delete(<<"subscriptions">>, proplists:get_value(<<"id">>, Sub)),
+  bedrock_stripe:modify_plan(-(proplists:get_value(<<"cost">>, Sub)), Identity),
   {ok, undefined, State}.
 
 change_service_tier(ServiceId, NewTier, State) ->
   bedrock_security:must_be_at_least(developer, State),
-  Identity         = proplists:get_value(identity, State),
-  {ok, [NewUC]}    = bedrock_pg:find(<<"usage_constraints">>, <<"service_id = $1 AND tier = $2">>, [ServiceId, NewTier]),
-  NewUCId          = proplists:get_value(<<"id">>, NewUC),
-  Where            = <<"developer_id = $1 AND service_id = $2">>,
-  Params           = [proplists:get_value(<<"id">>, Identity), ServiceId],
-  {ok, [DUC]}      = bedrock_pg:find(<<"developer_usage_constraints">>, Where, Params),
-  {ok, OldUC}      = bedrock_pg:get(<<"usage_constraints">>, proplists:get_value(<<"usage_constraint_id">>, DUC)),
-  DUCId            = proplists:get_value(<<"id">>, DUC),
-  {ok, UpdatedDUC} = bedrock_pg:update(<<"developer_usage_constraints">>, DUCId, [{<<"usage_constraint_id">>, NewUCId}]),
-  Amount           = proplists:get_value(<<"cost">>, NewUC) - proplists:get_value(<<"cost">>, OldUC),
+  Identity              = proplists:get_value(identity, State),
+  {ok, [NewConstraint]} = bedrock_pg:find(<<"constraints">>, <<"service_id = $1 AND tier = $2">>, [ServiceId, NewTier]),
+  NewConstraintId       = proplists:get_value(<<"id">>, NewConstraint),
+  Where                 = <<"developer_id = $1 AND service_id = $2">>,
+  Params                = [proplists:get_value(<<"id">>, Identity), ServiceId],
+  {ok, [Sub]}           = bedrock_pg:find(<<"subscriptions">>, Where, Params),
+  {ok, OldConstraint}   = bedrock_pg:get(<<"constraints">>, proplists:get_value(<<"constraint_id">>, Sub)),
+  SubId                 = proplists:get_value(<<"id">>, Sub),
+  {ok, UpdatedSub}      = bedrock_pg:update(<<"subscriptions">>, SubId, [{<<"constraint_id">>, NewConstraintId}]),
+  Amount                = proplists:get_value(<<"cost">>, NewConstraint) - proplists:get_value(<<"cost">>, OldConstraint),
   bedrock_stripe:modify_plan(Amount, Identity),
-  {ok, UpdatedDUC, State}.
+  {ok, UpdatedSub, State}.
 
 subscriptions(State) ->
   bedrock_security:must_be_at_least(developer, State),
   Identity = proplists:get_value(identity, State),
   Where = <<"id = $1">>,
   Params = [proplists:get_value(<<"id">>, Identity)],
-  {ok, DUCs} = bedrock_pg:find(<<"developer_usage_constraints">>, Where, Params),
-  {ok, DUCs, State}.
+  {ok, Subs} = bedrock_pg:find(<<"subscriptions">>, Where, Params),
+  {ok, Subs, State}.

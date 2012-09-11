@@ -286,10 +286,14 @@ must_be_able_to_write(Object, State) ->
   end.
 
 consume_test_key(Key) ->
-  Where = <<"key = $1">>,
-  Params = [Key],
-  {ok, [Grant]} = bedrock_pg:find(<<"test_access_grants">>, Where, Params),
-  bedrock_pg:delete(<<"test_access_grants">>, proplists:get_value(<<"id">>, Grant)).
+  case Key of
+    undefined -> ok;
+    _Other    ->
+      Where = <<"key = $1">>,
+      Params = [Key],
+      {ok, [Grant]} = bedrock_pg:find(<<"test_access_grants">>, Where, Params),
+      bedrock_pg:delete(<<"test_access_grants">>, proplists:get_value(<<"id">>, Grant))
+  end.
 
 uuid() ->
   random:seed(now()), 

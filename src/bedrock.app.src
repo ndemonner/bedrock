@@ -10,7 +10,8 @@
   {env, [
     {pools, [
       {router_pool, [
-        {size, 256}
+        {size, 256},
+        {max_overflow, 1024}
       ], [
         {module, bedrock_router}
       ]},      

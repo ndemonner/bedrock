@@ -142,9 +142,9 @@ CREATE INDEX test_access_grants_key_index ON test_access_grants USING hash (key)
 
 
 -----------------------------------------------------------------------------------------------------
--- USAGE CONSTRAINTS --------------------------------------------------------------------------------
+-- CONSTRAINTS --------------------------------------------------------------------------------------
 -----------------------------------------------------------------------------------------------------
-CREATE TABLE usage_constraints (
+CREATE TABLE constraints (
   id                    serial primary key,
   created               timestamp                                NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated               timestamp                                NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -155,29 +155,28 @@ CREATE TABLE usage_constraints (
   UNIQUE (service_id, capacity),
   UNIQUE (service_id, tier)
 );
-CREATE INDEX uc_service_id_index ON usage_constraints USING hash (service_id);
+CREATE INDEX constraint_service_id_index ON constraints USING hash (service_id);
 -----------------------------------------------------------------------------------------------------
--- /USAGE CONSTRAINTS -------------------------------------------------------------------------------
+-- /CONSTRAINTS -------------------------------------------------------------------------------------
 -----------------------------------------------------------------------------------------------------
 
 
 -----------------------------------------------------------------------------------------------------
--- DEVELOPER USAGE CONSTRAINTS ----------------------------------------------------------------------
+-- SUBSCRIPTIONS ------------------------------------------------------------------------------------
 -----------------------------------------------------------------------------------------------------
-CREATE TABLE developer_usage_constraints (
+CREATE TABLE subscriptions (
   id                    serial primary key,
   created               timestamp                                 NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated               timestamp                                 NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  usage                 bigint                                    NOT NULL DEFAULT 0,
   developer_id          int     REFERENCES developers (id)        ON DELETE CASCADE NOT NULL,
-  usage_constraint_id   int     REFERENCES usage_constraints (id) ON DELETE CASCADE NOT NULL,
+  constraint_id         int     REFERENCES constraints (id)       ON DELETE CASCADE NOT NULL,
   service_id            int     REFERENCES services (id)          NOT NULL
 );
-CREATE INDEX duc_developer_id ON developer_usage_constraints USING hash (developer_id);
-CREATE INDEX duc_uc_id ON developer_usage_constraints USING hash (usage_constraint_id);
-CREATE INDEX duc_service_id ON developer_usage_constraints USING hash (service_id);
+CREATE INDEX sub_developer_id ON subscriptions USING hash (developer_id);
+CREATE INDEX sub_constraint_id ON subscriptions USING hash (constraint_id);
+CREATE INDEX sub_service_id ON subscriptions USING hash (service_id);
 -----------------------------------------------------------------------------------------------------
--- /DEVELOPER USAGE CONSTRAINTS ---------------------------------------------------------------------
+-- /SUBSCRIPTIONS -----------------------------------------------------------------------------------
 -----------------------------------------------------------------------------------------------------
 
 

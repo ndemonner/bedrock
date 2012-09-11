@@ -134,7 +134,8 @@ get_history(Name, Limit) ->
   get_history(Name, 0, Limit).
 
 get_history(Name, Start, Finish) ->
-  Values = bedrock_redis:lrange(Name, Start, Finish),
+  % Zero-based indexes, so we subtract 1 from the finish
+  Values = bedrock_redis:lrange(Name, Start, Finish - 1),
   [binary_to_term(Value) || Value <- Values].
 
 unix_now() -> 

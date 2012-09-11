@@ -37,9 +37,9 @@ handle_cast({handle, Msg, ConnectionState}, State) ->
   [Type|_] = Unpacked,
   case Type of
     0 -> 
-      %% Req/rep call, so we get the unique id for the call,
-      %% and after it's been routed and answered we pack it
-      %% back up and send it on its way.
+      % Req/rep call, so we get the unique id for the call,
+      % and after it's been routed and answered we pack it
+      % back up and send it on its way.
 
       bedrock_metrics:increment_counter_without_message(<<"_internal.counters.rpcs">>),
       Start = erlang:now(),
