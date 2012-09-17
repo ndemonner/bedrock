@@ -3,7 +3,6 @@
   sign_in/2, 
   sign_out/1,
   establish_identity/2,
-  clear_logs/1,
   create/2
 ]).
 
@@ -23,7 +22,7 @@ create(Person, State) ->
 
   % Make sure we log this action--we don't want anyone creating admins without full
   % accountability.
-  Actor = proplists:get_value(identity, State),
+  Actor = p:identity(State),
   bedrock_security:log(admin, Actor, admin, create_admin, Person1),
 
   bedrock_metrics:increment_counter(<<"_internal.counters.admins">>),
@@ -43,19 +42,19 @@ sign_in(Credentials, State) ->
       bedrock_security:log(admin, Person, admin, sign_in, Person),
       bedrock_redis:publish(<<"admin-signed-in">>, Person),
 
-      IdentityT = {identity, Person},
-      RoleT     = {role, admin},
-      KeyT      = {key, Key},
+      IdentityTup = {identity, Person},
+      RoleTup     = {role, admin},
+      KeyTup      = {key, Key},
 
       % Administrators can use any service.
-      ServT     = {available_services, ['*']},
+      ServTup     = {available_services, ['*']},
 
-      {ok, Reply, [IdentityT, RoleT, KeyT, ServT | State]};
+      {ok, Reply, [IdentityTup, RoleTup, KeyTup, ServTup | State]};
     error -> {error, <<"You must enter a valid set of credentials.">>, State}
   end.
 
 sign_out(State) ->
-  Person = proplists:get_value(identity, State),
+  Person = p:identity(State),
   State1 = proplists:delete(identity, State),
   State2 = proplists:delete(role, State1),
 
@@ -73,26 +72,20 @@ sign_out(State) ->
 establish_identity(Key, State) ->
   % In order to avoid needless db hits, we check to make sure that this connection
   % doesn't already have an identity associated with it.
-  case proplists:get_value(identity, State) of
+  case p:identity(State) of
     undefined -> 
       % The rest of this mirrors admin.sign-in above.
       case bedrock_security:identify(admin, Key) of
         {ok, Person} ->
           Reply = [{<<"identity">>, Person}, {<<"key">>, Key}],
 
-          IdentityT = {identity, Person},
-          RoleT = {role, admin},
-          KeyT = {key, Key},
-          ServT = {available_services, ['*']},
+          IdentityTup = {identity, Person},
+          RoleTup     = {role, admin},
+          KeyTup      = {key, Key},
+          ServTup     = {available_services, ['*']},
 
-          {ok, Reply, [IdentityT, RoleT, KeyT, ServT | State]};
+          {ok, Reply, [IdentityTup, RoleTup, KeyTup, ServTup | State]};
         error -> {error, <<"You provided an invalid key.">>, State}
       end;
     Identity -> {ok, [{<<"identity">>, Identity}], State}
   end.
-
-% Resets the _internal.histories.logs history.
-clear_logs(State) ->
-  bedrock_security:must_be_at_least(admin, State),
-  bedrock_security:clear_logs(),
-  {ok, undefined, State}.

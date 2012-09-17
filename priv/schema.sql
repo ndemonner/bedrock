@@ -24,7 +24,7 @@ CREATE TABLE developers (
   updated               timestamp                                NOT NULL DEFAULT CURRENT_TIMESTAMP,
   email                 varchar(255)                             NOT NULL UNIQUE,
   password              varchar(255)                             NOT NULL,
-  customer_id           varchar(255)                             NOT NULL UNIQUE,
+  customer_id           varchar(255)                             UNIQUE,
   account_status        account_status_type                      NOT NULL DEFAULT 'ok'
 );
 CREATE INDEX developers_email_index ON developers USING hash (email);   
@@ -42,7 +42,7 @@ CREATE TABLE applications (
   created               timestamp                                NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated               timestamp                                NOT NULL DEFAULT CURRENT_TIMESTAMP,
   name                  varchar(255)                             NOT NULL,
-  appid                 varchar(255)                             NOT NULL UNIQUE,
+  appkey                varchar(255)                             NOT NULL UNIQUE,
   developer_id          int     REFERENCES developers (id)       ON DELETE CASCADE NOT NULL,
   UNIQUE (name, developer_id)
 );
@@ -170,7 +170,8 @@ CREATE TABLE subscriptions (
   updated               timestamp                                 NOT NULL DEFAULT CURRENT_TIMESTAMP,
   developer_id          int     REFERENCES developers (id)        ON DELETE CASCADE NOT NULL,
   constraint_id         int     REFERENCES constraints (id)       ON DELETE CASCADE NOT NULL,
-  service_id            int     REFERENCES services (id)          NOT NULL
+  service_id            int     REFERENCES services (id)          NOT NULL,
+  cost                  int                                       NOT NULL
 );
 CREATE INDEX sub_developer_id ON subscriptions USING hash (developer_id);
 CREATE INDEX sub_constraint_id ON subscriptions USING hash (constraint_id);

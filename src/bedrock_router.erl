@@ -92,6 +92,7 @@ route(RPC, State) ->
     Anything -> Anything
   catch
     throw:unauthorized       -> {error, unauthorized_message(), State};
+    throw:unassociated       -> {error, unassociated_message(), State};
     throw:unavailable        -> {error, unavailable_message(), State};
     throw:{requires_key, Id} -> {error, requires_key_message(Id), State};
     throw:{undefined, M}     -> {error, undefined_message(M), State};
@@ -115,6 +116,9 @@ general_error_message() ->
 
 unauthorized_message() ->
   <<"You are not authorized to perform this call. The attempt has been logged.">>.
+
+unassociated_message() ->
+  <<"The current connection has not been associated with any application. This must be done before this call can succeed.">>.
 
 unavailable_message() ->
   <<"You have not added this add-on service to your account.">>.

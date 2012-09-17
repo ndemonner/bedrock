@@ -14,7 +14,7 @@
   must_have_service/2,
   must_be_defined/2,
   must_be_unique/3,
-  clear_logs/0,
+  must_be_associated/1,
   hash/1,
   must_be_test_key_for_service/2
 ]).
@@ -63,7 +63,7 @@ identify(Table, Email, Password) ->
 
 generate_key(Person) ->
   Key = generate_uuid(),
-  Id = proplists:get_value(<<"id">>, Person),
+  Id = p:id(Person),
 
   bedrock_redis:set(Key, Id),
   % Expire the key in one day.
@@ -83,7 +83,7 @@ log(admin, Who, Interface, Method, Args) ->
   PrettyJson = jsx:prettify(Json),
   log(
     <<"administrator">>,
-    proplists:get_value(<<"id">>, Who),
+    p:id(Who),
     proplists:get_value(<<"email">>, Who),
     list_to_binary(atom_to_list(Interface)),
     list_to_binary(atom_to_list(Method)),
@@ -96,7 +96,7 @@ log(developer, Who, Interface, Method, Args) ->
   PrettyJson = jsx:prettify(Json),
   log(
     <<"developer">>,
-    proplists:get_value(<<"id">>, Who),
+    p:id(Who),
     proplists:get_value(<<"email">>, Who),
     list_to_binary(atom_to_list(Interface)),
     list_to_binary(atom_to_list(Method)),
@@ -128,11 +128,11 @@ must_be_at_least(developer, State) ->
   end.
 
 must_have_access_to(admin, Target, State) ->
-  Identity = proplists:get_value(identity, State),
-  Id = proplists:get_value(<<"id">>, Identity),
+  Identity = p:identity(State),
+  Id = p:id(Identity),
   case proplists:get_value(role, State) of
     admin ->
-      case Id =:= proplists:get_value(<<"id">>, Target) of
+      case Id =:= p:id(Target) of
         true  -> ok;
         false -> throw(unauthorized)
       end;
@@ -140,12 +140,12 @@ must_have_access_to(admin, Target, State) ->
   end;
 
 must_have_access_to(developer, Target, State) ->
-  Identity = proplists:get_value(identity, State),
-  Id = proplists:get_value(<<"id">>, Identity),
+  Identity = p:identity(State),
+  Id = p:id(Identity),
   case proplists:get_value(role, State) of
     admin     -> ok;
     developer ->
-      case Id =:= proplists:get_value(<<"id">>, Target) of
+      case Id =:= p:id(Target) of
         true  -> ok;
         false -> throw(unauthorized)
       end;
@@ -153,8 +153,8 @@ must_have_access_to(developer, Target, State) ->
   end;
 
 must_have_access_to(application, Target, State) ->
-  Identity = proplists:get_value(identity, State),
-  Id = proplists:get_value(<<"id">>, Identity),
+  Identity = p:identity(State),
+  Id = p:id(Identity),
   case proplists:get_value(role, State) of
     admin     -> ok;
     developer ->
@@ -163,7 +163,7 @@ must_have_access_to(application, Target, State) ->
         false -> throw(unauthorized)
       end;
     application -> 
-      case Id =:= proplists:get_value(<<"id">>, Target) of
+      case Id =:= p:id(Target) of
         true  -> ok;
         false -> throw(unauthorized)
       end;
@@ -171,8 +171,8 @@ must_have_access_to(application, Target, State) ->
   end;
 
 must_have_access_to(user, Target, State) ->
-  Identity = proplists:get_value(identity, State),
-  Id = proplists:get_value(<<"id">>, Identity),
+  Identity = p:identity(State),
+  Id = p:id(Identity),
   case proplists:get_value(role, State) of
     admin     -> ok;
     developer ->
@@ -184,7 +184,7 @@ must_have_access_to(user, Target, State) ->
       {ok, Application} = bedrock_pg:get(<<"applications">>, AppId),
       must_have_access_to(application, Application, State);
     user ->   
-      case Id =:= proplists:get_value(<<"id">>, Target) of
+      case Id =:= p:id(Target) of
         true  -> ok;
         false -> throw(unauthorized)
       end;
@@ -208,9 +208,6 @@ must_have_service(Service, State) ->
       false -> throw(unavailable)
     end
   end.
-
-clear_logs() ->
-  bedrock_metrics:reset(<<"_internal.histories.logs">>).
 
 hash(Pwd) ->
   {ok, Salt} = bcrypt:gen_salt(12),
@@ -252,8 +249,8 @@ must_be_test_key_for_service(Key, ServiceId) ->
   end.
 
 must_be_able_to_read(Object, State) ->
-  Identity = proplists:get_value(identity, State),
-  Id = proplists:get_value(<<"id">>, Identity),
+  Identity = p:identity(State),
+  Id = p:id(Identity),
   case Id =:= proplists:get_value(<<"user_id">>, Object) of
     true  -> ok;
     false ->
@@ -269,8 +266,8 @@ must_be_able_to_read(Object, State) ->
   end.
 
 must_be_able_to_write(Object, State) ->
-  Identity = proplists:get_value(identity, State),
-  Id = proplists:get_value(<<"id">>, Identity),
+  Identity = p:identity(State),
+  Id = p:id(Identity),
   case Id =:= proplists:get_value(<<"user_id">>, Object) of
     true  -> ok;
     false ->
@@ -285,6 +282,12 @@ must_be_able_to_write(Object, State) ->
       end
   end.
 
+must_be_associated(State) ->
+  case proplists:is_defined(application, State) of
+    true  -> ok;
+    false -> throw(unassociated)
+  end.
+
 consume_test_key(Key) ->
   case Key of
     undefined -> ok;
@@ -292,7 +295,7 @@ consume_test_key(Key) ->
       Where = <<"key = $1">>,
       Params = [Key],
       {ok, [Grant]} = bedrock_pg:find(<<"test_access_grants">>, Where, Params),
-      bedrock_pg:delete(<<"test_access_grants">>, proplists:get_value(<<"id">>, Grant))
+      bedrock_pg:delete(<<"test_access_grants">>, p:id(Grant))
   end.
 
 uuid() ->
@@ -331,9 +334,11 @@ accessible(Channel, Role) ->
 protected_channels() -> [
   {<<"admin-signed-on">>, admin},
   {<<"admin-signed-off">>, admin},
+  {<<"developer-created">>, admin},
 
   {<<"developer-signed-on">>, developer},
   {<<"developer-signed-off">>, developer}
+
 ].
 
 maybe_strip_password([{_,_}|_]=Args) ->

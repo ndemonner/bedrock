@@ -29,7 +29,18 @@
   add_history_value/3,
   get_history/1,
   get_history/2,
-  get_history/3
+  get_history/3,
+
+  %% Sorted Sets
+  add_member_to_set/3,
+  add_member_to_set/4,
+  remove_member_from_set/2,
+  get_member_rank_from_set/2,
+  get_member_score_from_set/2,
+  increment_member_score_in_set/3,
+  get_membership_size_for_set/1,
+  get_members_in_set/1,
+  get_members_in_set/3 
 ]).
 
 reset(Name) ->
@@ -86,7 +97,7 @@ get_time_series_statistics(Name) ->
 
 add_time_series_value(Name, Value) ->
   increment_counter_without_message(<<"_internal.counters.metrics">>),
-  add_time_series_value(Name, Value, time_series_default_trim_limit()).
+  add_time_series_value(Name, Value, default_trim()).
 
 add_time_series_value(Name, Value, Trim) ->
   % Milleseconds since epoch 
@@ -100,7 +111,7 @@ add_time_series_value(Name, Value, Trim) ->
   bedrock_redis:publish(changed(Name), Entry).
 
 add_time_series_value_without_message(Name, Value) ->
-  add_time_series_value_without_message(Name, Value, time_series_default_trim_limit()).
+  add_time_series_value_without_message(Name, Value, default_trim()).
 
 add_time_series_value_without_message(Name, Value, Trim) ->
   % Milleseconds since epoch 
@@ -114,7 +125,7 @@ add_time_series_value_without_message(Name, Value, Trim) ->
 
 add_history_value(Name, Value) ->
   increment_counter_without_message(<<"_internal.counters.metrics">>),
-  add_history_value(Name, Value, history_default_trim_limit()).
+  add_history_value(Name, Value, default_trim()).
 
 add_history_value(Name, Value, Trim) ->
   % Milleseconds since epoch 
@@ -137,6 +148,36 @@ get_history(Name, Start, Finish) ->
   % Zero-based indexes, so we subtract 1 from the finish
   Values = bedrock_redis:lrange(Name, Start, Finish - 1),
   [binary_to_term(Value) || Value <- Values].
+
+add_member_to_set(Name, Key, Score) ->
+  add_member_to_set(Name, Key, Score, default_trim()).
+
+add_member_to_set(Name, Key, Score, Trim) ->
+  increment_counter_without_message(<<"_internal.counters.metrics">>),
+  bedrock_redis:zadd(Name, term_to_binary(Key), Score),
+  bedrock_redis:zremrangebyrank(Name, 0, (-Trim) - 1).
+
+remove_member_from_set(Name, Key) ->
+  bedrock_redis:zrem(Name, term_to_binary(Key)).
+
+get_member_rank_from_set(Name, Key) ->
+  bedrock_redis:zrevrank(Name, term_to_binary(Key)).
+
+get_member_score_from_set(Name, Key) ->
+  bedrock_redis:zscore(Name, term_to_binary(Key)).
+
+increment_member_score_in_set(Name, Key, Amount) ->
+  increment_counter_without_message(<<"_internal.counters.metrics">>),
+  bedrock_redis:zincrby(Name, Amount, term_to_binary(Key)).
+
+get_membership_size_for_set(Name) ->
+  bedrock_redis:zcard(Name).
+
+get_members_in_set(Name) ->
+  get_members_in_set(Name, 0, -1).
+
+get_members_in_set(Name, Start, Finish) ->
+  bedrock_redis:zrevrange(Name, Start, Finish).
 
 unix_now() -> 
   {Mega, Sec, Micro} = erlang:now(),
@@ -163,5 +204,4 @@ continue_statistical_analysis(Values) ->
 changed(Name) ->
   list_to_binary(io_lib:format("~s-changed", [Name])).
 
-time_series_default_trim_limit() -> 256.
-history_default_trim_limit()     -> 256.
+default_trim() -> 256.

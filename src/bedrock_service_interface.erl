@@ -45,7 +45,7 @@ set_testing(ServiceId, Bool, State) ->
 
   bedrock_pg:update(<<"services">>, ServiceId, [{<<"testing">>, Bool}]),
 
-  Actor = proplists:get_value(identity, State),
+  Actor = p:identity(State),
   bedrock_security:log(admin, Actor, service, set_testing, [{service_id, ServiceId}, {testing, Bool}]),
   {ok, Service} = bedrock_pg:get(<<"services">>, ServiceId), 
   case Bool of
@@ -63,7 +63,7 @@ create(Service, State) ->
 
   {ok, Result} = bedrock_pg:insert(<<"services">>, Service),
 
-  Actor = proplists:get_value(identity, State),
+  Actor = p:identity(State),
   bedrock_security:log(admin, Actor, service, create, Result),
   bedrock_redis:publish(<<"service-created">>, Result),
 
@@ -75,7 +75,7 @@ update(ServiceId, Changes, State) ->
 
   {ok, _Result} = bedrock_pg:update(<<"services">>, ServiceId, Changes),
 
-  Actor = proplists:get_value(identity, State),
+  Actor = p:identity(State),
   bedrock_security:log(admin, Actor, service, update, Changes),
   bedrock_redis:publish(<<"service-updated">>, [ServiceId, Changes]),
 
@@ -88,7 +88,7 @@ delete(ServiceId, State) ->
       {ok, Service} = bedrock_pg:get(<<"services">>, ServiceId),
       bedrock_pg:delete(<<"services">>, ServiceId),
 
-      Actor = proplists:get_value(identity, State),
+      Actor = p:identity(State),
       bedrock_security:log(admin, Actor, service, delete, Service),
       bedrock_redis:publish(<<"service-deleted">>, Service),
 
@@ -107,7 +107,7 @@ create_tier(Tier, State) ->
   Tier1 = [{<<"tier">>, Count}|Tier],
   {ok, Result} = bedrock_pg:insert(<<"constraints">>, Tier1),
 
-  Actor = proplists:get_value(identity, State),
+  Actor = p:identity(State),
   bedrock_security:log(admin, Actor, service, add_tier, Result),
   bedrock_redis:publish(<<"tier-created">>, Result),
 
@@ -120,7 +120,7 @@ delete_tier(TierId, State) ->
     {ok, 0, State} -> 
       {ok, Tier} = bedrock_pg:get(<<"constraints">>, TierId),
       bedrock_pg:delete(<<"constraints">>, TierId),
-      Actor = proplists:get_value(identity, State),
+      Actor = p:identity(State),
       bedrock_security:log(admin, Actor, service, remove_tier, Tier),
       bedrock_redis:publish(<<"tier-deleted">>, Tier),
       {ok, undefined, State};
@@ -133,7 +133,7 @@ update_tier(TierId, Changes, State) ->
 
   {ok, Result} = bedrock_pg:update(<<"constraints">>, TierId, Changes),
 
-  Actor = proplists:get_value(identity, State),
+  Actor = p:identity(State),
   bedrock_security:log(admin, Actor, service, update_tier, Changes),
 
   ServiceId = proplists:get_value(<<"service_id">>, Result),

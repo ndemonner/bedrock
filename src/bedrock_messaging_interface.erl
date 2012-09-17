@@ -15,6 +15,7 @@ unsubscribe(Channels, State) ->
   proplists:get_value(pid, State) ! {unsubscribe, Channels},
   {ok, undefined, State}.
 
+%% F&F
 publish(Channel, Message, State) ->
   bedrock_security:must_have_service(<<"messaging">>, State),
 

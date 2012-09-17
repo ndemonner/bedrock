@@ -57,7 +57,7 @@ websocket_terminate(_Reason, _Req, State) ->
   bedrock_metrics:decrement_counter(<<"_internal.counters.connections">>),
 
   % If they have an identity, publish that they've signed-off
-  case proplists:get_value(identity, State) of
+  case p:identity(State) of
     undefined -> ok;
     Person    -> 
       Role = proplists:get_value(role, State),

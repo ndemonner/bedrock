@@ -32,7 +32,15 @@
   ltrim/3,
   ltrim/4,
   lrange/3,
-  lrange/4
+  lrange/4,
+  zadd/3,
+  zremrangebyrank/3,
+  zrem/2,
+  zrevrank/2,
+  zscore/2,
+  zincrby/3,
+  zcard/1,
+  zrevrange/3
 ]).
 
 %% ------------------------------------------------------------------
@@ -145,6 +153,46 @@ lrange(Key, Start, Finish) ->
 lrange(Worker, Key, Start, Finish) ->
   gen_server:call(Worker, {lrange, Key, Start, Finish}).
 
+zadd(Name, Key, Score) ->
+  poolboy:transaction(redis, fun(Worker) ->
+    gen_server:call(Worker, {zadd, Name, Key, Score})
+  end).
+
+zremrangebyrank(Name, Start, Finish) ->
+  poolboy:transaction(redis, fun(Worker) ->
+    gen_server:call(Worker, {zremrangebyrank, Name, Start, Finish})
+  end).
+
+zrem(Name, Key) ->
+  poolboy:transaction(redis, fun(Worker) ->
+    gen_server:call(Worker, {zrem, Name, Key})
+  end).
+
+zrevrank(Name, Key) ->
+  poolboy:transaction(redis, fun(Worker) ->
+    gen_server:call(Worker, {zrevrank, Name, Key})
+  end).
+
+zscore(Name, Key) ->
+  poolboy:transaction(redis, fun(Worker) ->
+    gen_server:call(Worker, {zscore, Name, Key})
+  end).
+
+zincrby(Name, Amount, Key) ->
+  poolboy:transaction(redis, fun(Worker) ->
+    gen_server:call(Worker, {zincrby, Name, Amount, Key})
+  end).
+
+zcard(Name) ->
+  poolboy:transaction(redis, fun(Worker) ->
+    gen_server:call(Worker, {zcard, Name})
+  end).
+
+zrevrange(Name, Start, Finish) ->
+  poolboy:transaction(redis, fun(Worker) ->
+    gen_server:call(Worker, {zrevrange, Name, Start, Finish})
+  end).
+
 %% ------------------------------------------------------------------
 %% gen_server Function Definitions
 %% ------------------------------------------------------------------
@@ -224,7 +272,47 @@ handle_call(end_transaction, _From, State) ->
   Connection = proplists:get_value(connection, State),
   {ok, Result} = eredis:q(Connection, ["EXEC"]),
   {reply, format(Result), State};
-  
+
+handle_call({zadd, Name, Key, Score}, _From, State) ->
+  Connection = proplists:get_value(connection, State),
+  {ok, Result} = eredis:q(Connection, ["ZADD", Name, Key, Score]),
+  {reply, format(Result), State};
+
+handle_call({zremrangebyrank, Name, Start, Finish}, _From, State) ->
+  Connection = proplists:get_value(connection, State),
+  {ok, Result} = eredis:q(Connection, ["ZREMRANGEBYRANK", Name, Start, Finish]),
+  {reply, format(Result), State};
+
+handle_call({zrem, Name, Key}, _From, State) ->
+  Connection = proplists:get_value(connection, State),
+  {ok, Result} = eredis:q(Connection, ["ZREM", Name, Key]),
+  {reply, format(Result), State};
+
+handle_call({zrevrank, Name, Key}, _From, State) ->
+  Connection = proplists:get_value(connection, State),
+  {ok, Result} = eredis:q(Connection, ["ZREVRANK", Name, Key]),
+  {reply, format(Result), State};
+
+handle_call({zscore, Name, Key}, _From, State) ->
+  Connection = proplists:get_value(connection, State),
+  {ok, Result} = eredis:q(Connection, ["ZSCORE", Name, Key]),
+  {reply, format(Result), State};
+
+handle_call({zincrby, Name, Amount, Key}, _From, State) ->
+  Connection = proplists:get_value(connection, State),
+  {ok, Result} = eredis:q(Connection, ["ZINCRBY", Name, Amount, Key]),
+  {reply, format(Result), State};
+
+handle_call({zcard, Name}, _From, State) ->
+  Connection = proplists:get_value(connection, State),
+  {ok, Result} = eredis:q(Connection, ["ZCARD", Name]),
+  {reply, format(Result), State};
+
+handle_call({zrevrange, Name, Start, Finish}, _From, State) ->
+  Connection = proplists:get_value(connection, State),
+  {ok, Result} = eredis:q(Connection, ["ZREVRANGE", Name, Start, Finish]),
+  {reply, format(Result), State};
+
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
 
