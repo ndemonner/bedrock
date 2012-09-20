@@ -20,4 +20,5 @@ publish(Channel, Message, State) ->
   bedrock_security:must_have_service(<<"messaging">>, State),
 
   bedrock_redis:publish(Channel, Message),
+  bedrock_meter:adjust_usage(messaging, 1),
   {ok, undefined, State}.

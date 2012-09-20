@@ -1,5 +1,5 @@
 -module (bedrock_application_interface).
--export ([associate/2]).
+-export ([associate/2, create/2]).
 
 associate(AppKey, State) ->
   {ok, [Application]} = bedrock_pg:find(<<"applications">>, <<"appkey = $1">>, [AppKey]),
@@ -15,3 +15,10 @@ associate(AppKey, State) ->
   end, Subs),
 
   {ok, undefined, [{application, p:id(Application)}, {available_services, Services}|State]}.
+
+create(Application, State) ->
+  bedrock_security:must_be_at_least(developer, State),
+  bedrock_security:must_be_unique(<<"applications">>, <<"name">>, Application),
+  App1 = [{<<"developer_id">>, p:id(p:identity(State))}|Application],
+  {ok, Saved} = bedrock_pg:insert(<<"applications">>, App1),
+  {ok, Saved, State}.

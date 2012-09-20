@@ -256,9 +256,9 @@ must_be_able_to_read(Object, State) ->
     false ->
       case proplists:get_value(<<"readers">>, Object) of
         [0]   -> ok;
-        [-1]  -> throw(unauthorized);
-        List  -> 
-          case lists:member(Id, List) of
+        []    -> throw(unauthorized);
+        Set   -> 
+          case lists:member(Id, Set) of
             false -> throw(unauthorized);
             true  -> ok
           end
@@ -273,9 +273,9 @@ must_be_able_to_write(Object, State) ->
     false ->
       case proplists:get_value(<<"writers">>, Object) of
         [0]   -> ok;
-        [-1]  -> throw(unauthorized);
-        List  -> 
-          case lists:member(Id, List) of
+        []    -> throw(unauthorized);
+        Set   -> 
+          case lists:member(Id, Set) of
             false -> throw(unauthorized);
             true  -> ok
           end

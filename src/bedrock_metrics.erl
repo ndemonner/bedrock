@@ -101,7 +101,7 @@ add_time_series_value(Name, Value) ->
 
 add_time_series_value(Name, Value, Trim) ->
   % Milleseconds since epoch 
-  Time = bedrock_metrics:unix_now() / 1000,
+  Time = bedrock_metrics:unix_now(),
   Entry = [
     {<<"time">>, Time},
     {<<"value">>, Value}
@@ -115,7 +115,7 @@ add_time_series_value_without_message(Name, Value) ->
 
 add_time_series_value_without_message(Name, Value, Trim) ->
   % Milleseconds since epoch 
-  Time = bedrock_metrics:unix_now() / 1000,
+  Time = bedrock_metrics:unix_now(),
   Entry = [
     {<<"time">>, Time},
     {<<"value">>, Value}
@@ -129,7 +129,7 @@ add_history_value(Name, Value) ->
 
 add_history_value(Name, Value, Trim) ->
   % Milleseconds since epoch 
-  Time = bedrock_metrics:unix_now() / 1000,
+  Time = bedrock_metrics:unix_now(),
   Entry = [
     {<<"time">>, Time},
     {<<"value">>, Value}
@@ -181,8 +181,8 @@ get_members_in_set(Name, Start, Finish) ->
 
 unix_now() -> 
   {Mega, Sec, Micro} = erlang:now(),
-  % Convert to microseconds
-  Mega * 1000000 * 1000000 + Sec * 1000000 + Micro.
+  % Convert to milleseconds
+  (Mega * 1000000 * 1000000 + Sec * 1000000 + Micro) / 1000.
 
 %%-----------------------------------------------------------------------------
 %% Private --------------------------------------------------------------------

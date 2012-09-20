@@ -34,13 +34,21 @@
   lrange/3,
   lrange/4,
   zadd/3,
+  zadd/4,
   zremrangebyrank/3,
+  zremrangebyrank/4,
   zrem/2,
+  zrem/3,
   zrevrank/2,
+  zrevrank/3,
   zscore/2,
+  zscore/3,
   zincrby/3,
+  zincrby/4,
   zcard/1,
-  zrevrange/3
+  zcard/2,
+  zrevrange/3,
+  zrevrange/4
 ]).
 
 %% ------------------------------------------------------------------
@@ -59,57 +67,73 @@ start_link(Args) ->
 
 %% Most these functions have an alternate version where an explicit worker PID can
 %% be specified. This is to ensure that the same worker builds a correct queue of
-%% commands during a Redis transaction. If you aren't using a tranaction, just use
+%% commands during a Redis transaction. If you aren't using a transaction, just use
 %% the regular function without specifying a worker PID.
 
-get(Key) -> 
+command(Args) ->
   poolboy:transaction(redis, fun(Worker) ->
-    gen_server:call(Worker, {get, Key})
+    gen_server:call(Worker, {Args})
   end).
-get(Worker, Key) -> 
-  gen_server:call(Worker, {get, Key}).
 
-set(Key, Value) ->
-  poolboy:transaction(redis, fun(Worker) ->
-    gen_server:call(Worker, {set, Key, Value})
-  end).
-set(Worker, Key, Value) ->
-  gen_server:call(Worker, {set, Key, Value}).
+command(Worker, Args) ->
+  gen_server:call(Worker, {Args}).
 
-expire(Key, Time) ->
-  poolboy:transaction(redis, fun(Worker) ->
-    gen_server:call(Worker, {expire, Key, Time})
-  end).
-expire(Worker, Key, Time) ->
-  gen_server:call(Worker, {expire, Key, Time}).
+get(Key)                                    -> command(["GET", Key]).
+get(Worker, Key)                            -> command(Worker, ["GET", Key]).
 
-delete(Key) ->
-  poolboy:transaction(redis, fun(Worker) ->
-    gen_server:call(Worker, {delete, Key})
-  end).
-delete(Worker, Key) ->
-  gen_server:call(Worker, {delete, Key}).
+set(Key, Value)                             -> command(["SET", Key, Value]).
+set(Worker, Key, Value)                     -> command(Worker, ["SET", Key, Value]).
 
-incr(Key) ->
-  poolboy:transaction(redis, fun(Worker) ->
-    gen_server:call(Worker, {incr, Key})
-  end).
-incr(Worker, Key) ->
-  gen_server:call(Worker, {incr, Key}).
+expire(Key, Time)                           -> command(["EXPIRE", Key, Time]).
+expire(Worker, Key, Time)                   -> command(Worker, ["EXPIRE", Key, Time]).
 
-incrby(Key, Value) ->
-  poolboy:transaction(redis, fun(Worker) ->
-    gen_server:call(Worker, {incrby, Key, Value})
-  end).
-incrby(Worker, Key, Value) ->
-  gen_server:call(Worker, {incrby, Key, Value}).
+delete(Key)                                 -> command(["DEL", Key]).
+delete(Worker, Key)                         -> command(Worker, ["DEL", Key]).
 
-decr(Key) ->
-  poolboy:transaction(redis, fun(Worker) ->
-    gen_server:call(Worker, {decr, Key})
-  end).
-decr(Worker, Key) ->
-  gen_server:call(Worker, {decr, Key}).
+incr(Key)                                   -> command(["INCR", Key]).
+incr(Worker, Key)                           -> command(Worker, ["INCR", Key]).
+
+incrby(Key, Value)                          -> command(["INCRBY", Key, Value]).
+incrby(Worker, Key, Value)                  -> command(Worker, ["INCRBY", Key, Value]).
+
+decr(Key)                                   -> command(["DECR", Key])
+decr(Worker, Key)                           -> command(Worker, ["DECR", Key]).
+
+getset(Key, Value)                          -> command(["GETSET", Key, Value]).
+getset(Worker, Key, Value)                  -> command(Worker, ["GETSET", Key, Value]).
+
+lpush(Key, Value)                           -> command(["LPUSH", Key, Value]).
+lpush(Worker, Key, Value)                   -> command(Worker, ["LPUSH", Key, Value]).
+
+ltrim(Key, Start, Finish)                   -> command(["LTRIM", Key, Start, Finish]).
+ltrim(Worker, Key, Start, Finish)           -> command(Worker, ["LTRIM", Key, Start, Finish]).
+
+lrange(Key, Start, Finish)                  -> command(["LRANGE", Key, Start, Finish]).
+lrange(Worker, Key, Start, Finish)          -> command(Worker, ["LRANGE", Key, Start, Finish]).
+
+zadd(Set, Key, Score)                       -> command(["ZADD", Set, Key, Score]).
+zadd(Worker, Set, Key, Score)               -> command(Worker, ["ZADD", Set, Key, Score]).
+
+zremrangebyrank(Set, Start, Finish)         -> command(["ZREMRANGEBYRANK", Set, Start, Finish]).
+zremrangebyrank(Worker, Set, Start, Finish) -> command(Worker, ["ZREMRANGEBYRANK", Set, Start, Finish]).
+
+zrem(Set, Key)                              -> command(["ZREM", Set, Key]).
+zrem(Worker, Set, Key)                      -> command(Worker, ["ZREM", Set, Key]).
+
+zrevrank(Set, Key)                          -> command(["ZREVRANK", Set, Key]).
+zrevrank(Worker, Set, Key)                  -> command(Worker, ["ZREVRANK", Set, Key]).
+
+zscore(Set, Key)                            -> command(["ZSCORE", Set, Key]).
+zscore(Worker, Set, Key)                    -> command(Worker, ["ZSCORE", Set, Key]).
+
+zincrby(Set, Amount, Key)                   -> command(["ZINCRBY", Set, Amount, Key]).
+zincrby(Worker, Set, Amount, Key)           -> command(Worker, ["ZINCRBY", Set, Amount, Key]).
+
+zcard(Set)                                  -> command(["ZCARD", Set]).
+zcard(Worker, Set)                          -> command(Worker, ["ZCARD", Set]).
+
+zrevrange(Set, Start, Finish)               -> command(["ZREVRANGE", Set, Start, Finish]).
+zrevrange(Worker, Set, Start, Finish)       -> command(Worker, ["ZREVRANGE", Set, Start, Finish]).
 
 publish(Channel, Message) ->
   poolboy:transaction(redis, fun(Worker) ->
@@ -125,74 +149,6 @@ end_transaction(Worker) ->
   poolboy:checkin(redis, Worker),
   Result.
 
-getset(Key, Value) ->
-  poolboy:transaction(redis, fun(Worker) ->
-    gen_server:call(Worker, {getset, Key, Value})
-  end).
-getset(Worker, Key, Value) ->
-  gen_server:call(Worker, {getset, Key, Value}).
-
-lpush(Key, Value) ->
-  poolboy:transaction(redis, fun(Worker) ->
-    gen_server:call(Worker, {lpush, Key, Value})
-  end).
-lpush(Worker, Key, Value) ->
-  gen_server:call(Worker, {lpush, Key, Value}).
-
-ltrim(Key, Start, Finish) ->
-  poolboy:transaction(redis, fun(Worker) ->
-    gen_server:call(Worker, {ltrim, Key, Start, Finish})
-  end).
-ltrim(Worker, Key, Start, Finish) ->
-  gen_server:call(Worker, {ltrim, Key, Start, Finish}).
-
-lrange(Key, Start, Finish) ->
-  poolboy:transaction(redis, fun(Worker) ->
-    gen_server:call(Worker, {lrange, Key, Start, Finish})
-  end).
-lrange(Worker, Key, Start, Finish) ->
-  gen_server:call(Worker, {lrange, Key, Start, Finish}).
-
-zadd(Name, Key, Score) ->
-  poolboy:transaction(redis, fun(Worker) ->
-    gen_server:call(Worker, {zadd, Name, Key, Score})
-  end).
-
-zremrangebyrank(Name, Start, Finish) ->
-  poolboy:transaction(redis, fun(Worker) ->
-    gen_server:call(Worker, {zremrangebyrank, Name, Start, Finish})
-  end).
-
-zrem(Name, Key) ->
-  poolboy:transaction(redis, fun(Worker) ->
-    gen_server:call(Worker, {zrem, Name, Key})
-  end).
-
-zrevrank(Name, Key) ->
-  poolboy:transaction(redis, fun(Worker) ->
-    gen_server:call(Worker, {zrevrank, Name, Key})
-  end).
-
-zscore(Name, Key) ->
-  poolboy:transaction(redis, fun(Worker) ->
-    gen_server:call(Worker, {zscore, Name, Key})
-  end).
-
-zincrby(Name, Amount, Key) ->
-  poolboy:transaction(redis, fun(Worker) ->
-    gen_server:call(Worker, {zincrby, Name, Amount, Key})
-  end).
-
-zcard(Name) ->
-  poolboy:transaction(redis, fun(Worker) ->
-    gen_server:call(Worker, {zcard, Name})
-  end).
-
-zrevrange(Name, Start, Finish) ->
-  poolboy:transaction(redis, fun(Worker) ->
-    gen_server:call(Worker, {zrevrange, Name, Start, Finish})
-  end).
-
 %% ------------------------------------------------------------------
 %% gen_server Function Definitions
 %% ------------------------------------------------------------------
@@ -201,61 +157,6 @@ init(Args) ->
   Hostname = proplists:get_value(hostname, Args),
   {ok, Conn} = eredis:start_link(Hostname),
   {ok, [{connection, Conn}]}.
-
-handle_call({get, Key}, _From, State) ->
-  Connection = proplists:get_value(connection, State),
-  {ok, Result} = eredis:q(Connection, ["GET", Key]),
-  {reply, format(Result), State};
-
-handle_call({set, Key, Value}, _From, State) ->
-  Connection = proplists:get_value(connection, State),
-  {ok, Result} = eredis:q(Connection, ["SET", Key, Value]),
-  {reply, format(Result), State};
-
-handle_call({getset, Key, Value}, _From, State) ->
-  Connection = proplists:get_value(connection, State),
-  {ok, Result} = eredis:q(Connection, ["GETSET", Key, Value]),
-  {reply, format(Result), State};
-
-handle_call({expire, Key, Time}, _From, State) ->
-  Connection = proplists:get_value(connection, State),
-  {ok, Result} = eredis:q(Connection, ["EXPIRE", Key, Time]),
-  {reply, format(Result), State};
-
-handle_call({delete, Key}, _From, State) ->
-  Connection = proplists:get_value(connection, State),
-  {ok, Result} = eredis:q(Connection, ["DEL", Key]),
-  {reply, format(Result), State};
-
-handle_call({incr, Key}, _From, State) ->
-  Connection = proplists:get_value(connection, State),
-  {ok, Result} = eredis:q(Connection, ["INCR", Key]),
-  {reply, format(Result), State};
-
-handle_call({incrby, Key, Value}, _From, State) ->
-  Connection = proplists:get_value(connection, State),
-  {ok, Result} = eredis:q(Connection, ["INCRBY", Key, Value]),
-  {reply, format(Result), State};
-
-handle_call({decr, Key}, _From, State) ->
-  Connection = proplists:get_value(connection, State),
-  {ok, Result} = eredis:q(Connection, ["DECR", Key]),
-  {reply, format(Result), State};
-
-handle_call({lpush, Key, Value}, _From, State) ->
-  Connection = proplists:get_value(connection, State),
-  {ok, Result} = eredis:q(Connection, ["LPUSH", Key, Value]),
-  {reply, format(Result), State};
-
-handle_call({ltrim, Key, Start, Finish}, _From, State) ->
-  Connection = proplists:get_value(connection, State),
-  {ok, Result} = eredis:q(Connection, ["LTRIM", Key, Start, Finish]),
-  {reply, format(Result), State};
-
-handle_call({lrange, Key, Start, Finish}, _From, State) ->
-  Connection = proplists:get_value(connection, State),
-  {ok, Result} = eredis:q(Connection, ["LRANGE", Key, Start, Finish]),
-  {reply, format(Result), State};
 
 handle_call({publish, Channel, Message}, _From, State) ->
   Connection = proplists:get_value(connection, State),
@@ -273,44 +174,9 @@ handle_call(end_transaction, _From, State) ->
   {ok, Result} = eredis:q(Connection, ["EXEC"]),
   {reply, format(Result), State};
 
-handle_call({zadd, Name, Key, Score}, _From, State) ->
+handle_call({Args}, _From, State) ->
   Connection = proplists:get_value(connection, State),
-  {ok, Result} = eredis:q(Connection, ["ZADD", Name, Key, Score]),
-  {reply, format(Result), State};
-
-handle_call({zremrangebyrank, Name, Start, Finish}, _From, State) ->
-  Connection = proplists:get_value(connection, State),
-  {ok, Result} = eredis:q(Connection, ["ZREMRANGEBYRANK", Name, Start, Finish]),
-  {reply, format(Result), State};
-
-handle_call({zrem, Name, Key}, _From, State) ->
-  Connection = proplists:get_value(connection, State),
-  {ok, Result} = eredis:q(Connection, ["ZREM", Name, Key]),
-  {reply, format(Result), State};
-
-handle_call({zrevrank, Name, Key}, _From, State) ->
-  Connection = proplists:get_value(connection, State),
-  {ok, Result} = eredis:q(Connection, ["ZREVRANK", Name, Key]),
-  {reply, format(Result), State};
-
-handle_call({zscore, Name, Key}, _From, State) ->
-  Connection = proplists:get_value(connection, State),
-  {ok, Result} = eredis:q(Connection, ["ZSCORE", Name, Key]),
-  {reply, format(Result), State};
-
-handle_call({zincrby, Name, Amount, Key}, _From, State) ->
-  Connection = proplists:get_value(connection, State),
-  {ok, Result} = eredis:q(Connection, ["ZINCRBY", Name, Amount, Key]),
-  {reply, format(Result), State};
-
-handle_call({zcard, Name}, _From, State) ->
-  Connection = proplists:get_value(connection, State),
-  {ok, Result} = eredis:q(Connection, ["ZCARD", Name]),
-  {reply, format(Result), State};
-
-handle_call({zrevrange, Name, Start, Finish}, _From, State) ->
-  Connection = proplists:get_value(connection, State),
-  {ok, Result} = eredis:q(Connection, ["ZREVRANGE", Name, Start, Finish]),
+  {ok, Result} = eredis:q(Connection, Args),
   {reply, format(Result), State};
 
 handle_call(_Request, _From, State) ->
