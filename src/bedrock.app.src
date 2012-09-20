@@ -14,6 +14,12 @@
         {max_overflow, 1024}
       ], [
         {module, bedrock_router}
+      ]},       
+      {meter_pool, [
+        {size, 256},
+        {max_overflow, 1024}
+      ], [
+        {module, bedrock_meter}
       ]},      
       {pg, [
         {size, 10},

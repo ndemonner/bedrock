@@ -48,7 +48,21 @@
   zcard/1,
   zcard/2,
   zrevrange/3,
-  zrevrange/4
+  zrevrange/4,
+  sadd/2,
+  sadd/3,
+  hmset/2,
+  hmset/3,
+  hset/3,
+  hset/4,
+  srem/2,
+  srem/3,
+  smembers/1,
+  smembers/2,
+  srandmember/1,
+  srandmember/2,
+  hgetall/1,
+  hgetall/2
 ]).
 
 %% ------------------------------------------------------------------
@@ -78,62 +92,86 @@ command(Args) ->
 command(Worker, Args) ->
   gen_server:call(Worker, {Args}).
 
-get(Key)                                    -> command(["GET", Key]).
-get(Worker, Key)                            -> command(Worker, ["GET", Key]).
+get(Key)                           -> command(["GET", Key]).
+get(Worker, Key)                   -> command(Worker, ["GET", Key]).
 
-set(Key, Value)                             -> command(["SET", Key, Value]).
-set(Worker, Key, Value)                     -> command(Worker, ["SET", Key, Value]).
+set(Key, Value)                    -> command(["SET", Key, Value]).
+set(Worker, Key, Value)            -> command(Worker, ["SET", Key, Value]).
 
-expire(Key, Time)                           -> command(["EXPIRE", Key, Time]).
-expire(Worker, Key, Time)                   -> command(Worker, ["EXPIRE", Key, Time]).
+expire(Key, Time)                  -> command(["EXPIRE", Key, Time]).
+expire(Worker, Key, Time)          -> command(Worker, ["EXPIRE", Key, Time]).
 
-delete(Key)                                 -> command(["DEL", Key]).
-delete(Worker, Key)                         -> command(Worker, ["DEL", Key]).
+delete(Key)                        -> command(["DEL", Key]).
+delete(Worker, Key)                -> command(Worker, ["DEL", Key]).
 
-incr(Key)                                   -> command(["INCR", Key]).
-incr(Worker, Key)                           -> command(Worker, ["INCR", Key]).
+incr(Key)                          -> command(["INCR", Key]).
+incr(Worker, Key)                  -> command(Worker, ["INCR", Key]).
 
-incrby(Key, Value)                          -> command(["INCRBY", Key, Value]).
-incrby(Worker, Key, Value)                  -> command(Worker, ["INCRBY", Key, Value]).
+incrby(Key, Value)                 -> command(["INCRBY", Key, Value]).
+incrby(Worker, Key, Value)         -> command(Worker, ["INCRBY", Key, Value]).
 
-decr(Key)                                   -> command(["DECR", Key])
-decr(Worker, Key)                           -> command(Worker, ["DECR", Key]).
+decr(Key)                          -> command(["DECR", Key]).
+decr(Worker, Key)                  -> command(Worker, ["DECR", Key]).
 
-getset(Key, Value)                          -> command(["GETSET", Key, Value]).
-getset(Worker, Key, Value)                  -> command(Worker, ["GETSET", Key, Value]).
+decrby(Key, Value)                 -> command(["DECRBY", Key, Value]).
+decrby(Worker, Key, Value)         -> command(Worker, ["DECRBY", Key, Value]).
 
-lpush(Key, Value)                           -> command(["LPUSH", Key, Value]).
-lpush(Worker, Key, Value)                   -> command(Worker, ["LPUSH", Key, Value]).
+getset(Key, Value)                 -> command(["GETSET", Key, Value]).
+getset(Worker, Key, Value)         -> command(Worker, ["GETSET", Key, Value]).
 
-ltrim(Key, Start, Finish)                   -> command(["LTRIM", Key, Start, Finish]).
-ltrim(Worker, Key, Start, Finish)           -> command(Worker, ["LTRIM", Key, Start, Finish]).
+lpush(Key, Value)                  -> command(["LPUSH", Key, Value]).
+lpush(Worker, Key, Value)          -> command(Worker, ["LPUSH", Key, Value]).
 
-lrange(Key, Start, Finish)                  -> command(["LRANGE", Key, Start, Finish]).
-lrange(Worker, Key, Start, Finish)          -> command(Worker, ["LRANGE", Key, Start, Finish]).
+ltrim(Key, Start, Finish)          -> command(["LTRIM", Key, Start, Finish]).
+ltrim(Worker, Key, Start, Finish)  -> command(Worker, ["LTRIM", Key, Start, Finish]).
 
-zadd(Set, Key, Score)                       -> command(["ZADD", Set, Key, Score]).
-zadd(Worker, Set, Key, Score)               -> command(Worker, ["ZADD", Set, Key, Score]).
+lrange(Key, Start, Finish)         -> command(["LRANGE", Key, Start, Finish]).
+lrange(Worker, Key, Start, Finish) -> command(Worker, ["LRANGE", Key, Start, Finish]).
 
-zremrangebyrank(Set, Start, Finish)         -> command(["ZREMRANGEBYRANK", Set, Start, Finish]).
-zremrangebyrank(Worker, Set, Start, Finish) -> command(Worker, ["ZREMRANGEBYRANK", Set, Start, Finish]).
+zadd(Set, Key, Score)              -> command(["ZADD", Set, Key, Score]).
+zadd(Worker, Set, Key, Score)      -> command(Worker, ["ZADD", Set, Key, Score]).
 
-zrem(Set, Key)                              -> command(["ZREM", Set, Key]).
-zrem(Worker, Set, Key)                      -> command(Worker, ["ZREM", Set, Key]).
+zremrangebyrank(Set, S, F)         -> command(["ZREMRANGEBYRANK", Set, S, F]).
+zremrangebyrank(Worker, Set, S, F) -> command(Worker, ["ZREMRANGEBYRANK", Set, S, F]).
 
-zrevrank(Set, Key)                          -> command(["ZREVRANK", Set, Key]).
-zrevrank(Worker, Set, Key)                  -> command(Worker, ["ZREVRANK", Set, Key]).
+zrem(Set, Key)                     -> command(["ZREM", Set, Key]).
+zrem(Worker, Set, Key)             -> command(Worker, ["ZREM", Set, Key]).
 
-zscore(Set, Key)                            -> command(["ZSCORE", Set, Key]).
-zscore(Worker, Set, Key)                    -> command(Worker, ["ZSCORE", Set, Key]).
+zrevrank(Set, Key)                 -> command(["ZREVRANK", Set, Key]).
+zrevrank(Worker, Set, Key)         -> command(Worker, ["ZREVRANK", Set, Key]).
 
-zincrby(Set, Amount, Key)                   -> command(["ZINCRBY", Set, Amount, Key]).
-zincrby(Worker, Set, Amount, Key)           -> command(Worker, ["ZINCRBY", Set, Amount, Key]).
+zscore(Set, Key)                   -> command(["ZSCORE", Set, Key]).
+zscore(Worker, Set, Key)           -> command(Worker, ["ZSCORE", Set, Key]).
 
-zcard(Set)                                  -> command(["ZCARD", Set]).
-zcard(Worker, Set)                          -> command(Worker, ["ZCARD", Set]).
+zincrby(Set, Amount, Key)          -> command(["ZINCRBY", Set, Amount, Key]).
+zincrby(Worker, Set, Amount, Key)  -> command(Worker, ["ZINCRBY", Set, Amount, Key]).
 
-zrevrange(Set, Start, Finish)               -> command(["ZREVRANGE", Set, Start, Finish]).
-zrevrange(Worker, Set, Start, Finish)       -> command(Worker, ["ZREVRANGE", Set, Start, Finish]).
+zcard(Set)                         -> command(["ZCARD", Set]).
+zcard(Worker, Set)                 -> command(Worker, ["ZCARD", Set]).
+
+zrevrange(Set, S, F)               -> command(["ZREVRANGE", Set, S, F]).
+zrevrange(Worker, Set, S, F)       -> command(Worker, ["ZREVRANGE", Set, S, F]).
+
+sadd(Set, Member)                  -> command(["SADD", Set, Member]).
+sadd(Worker, Set, Member)          -> command(Worker, ["SADD", Set, Member]).
+
+srem(Set, Member)                  -> command(["SREM", Set, Member]).
+srem(Worker, Set, Member)          -> command(Worker, ["SREM", Set, Member]).
+
+smembers(Set)                      -> command(["SMEMBERS", Set]).
+smembers(Worker, Set)              -> command(Worker, ["SMEMBERS", Set]).
+
+srandmember(Set)                   -> command(["SRANDMEMBER", Set]).
+srandmember(Worker, Set)           -> command(Worker, ["SRANDMEMBER", Set]).
+
+hmset(Key, Attrs)                  -> command(["HMSET", Key|Attrs]).
+hmset(Worker, Key, Attrs)          -> command(Worker, ["HMSET", Key|Attrs]).
+
+hset(Key, Field, Value)            -> command(["HSET", Key, Field, Value]).
+hset(Worker, Key, Field, Value)    -> command(Worker, ["HSET", Key, Field, Value]).
+
+hgetall(Key)                       -> command(["HGETALL", Key]).
+hgetall(Worker, Key)               -> command(Worker, ["HGETALL", Key]).
 
 publish(Channel, Message) ->
   poolboy:transaction(redis, fun(Worker) ->

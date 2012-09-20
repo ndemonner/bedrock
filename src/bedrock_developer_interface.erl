@@ -1,17 +1,17 @@
 -module (bedrock_developer_interface).
 -export ([
   create/2,
-  delete/2,
+  delete/1,
   sign_in/2,
   sign_out/1,
   get_identity/1,
   establish_identity/2,
   update/2,
   activate_service/2,
-  change_service_tier/3,
+  change_subscription/3,
   deactivate_service/2,
   subscriptions/1,
-  subscriptions_for_customer/1
+  subscriptions_for_customer/2
 ]).
 
 create(DeveloperRaw, State) ->
@@ -55,7 +55,7 @@ create(DeveloperRaw, State) ->
       {<<"cost">>, proplists:get_value(<<"cost">>, Constraint)}
     ],
     bedrock_pg:insert(<<"subscriptions">>, Sub),
-    bedrock_security:consume_test_key(Key),
+    bedrock_security:consume_test_key(Key)
   end, ServicePairs),
 
   % Sign them in
@@ -78,7 +78,7 @@ create(DeveloperRaw, State) ->
 
   {ok, Reply, [IdentityTup, RoleTup, KeyTup, ServTup | State]}.
 
-delete(DeveloperId, State) ->
+delete(State) ->
   undefined.
 
 sign_in(Credentials, State) ->
@@ -161,8 +161,8 @@ activate_service(IdKeyPair, State) ->
   {ok, Service} = bedrock_pg:get(<<"services">>, Id),
   case proplists:get_value(<<"testing">>, Service) of
     true  -> 
-      bedrock_security:must_be_test_key_for_service(Key, Id);
-      bedrock_security:consume_test_key(Key),
+      bedrock_security:must_be_test_key_for_service(Key, Id),
+      bedrock_security:consume_test_key(Key);
     false -> ok
   end,
 
@@ -191,12 +191,13 @@ deactivate_service(ServiceId, State) ->
   {ok, [Sub]} = bedrock_pg:find(<<"subscriptions">>, <<"developer_id = $1 AND service_id = $2">>, Params),
   bedrock_pg:delete(<<"subscriptions">>, p:id(Sub)),
 
+  {ok, Service} = bedrock_pg:get(<<"service">>, ServiceId),
   NewServices = proplists:delete(proplists:get_value(<<"name">>, Service), proplists:get_value(available_services, State)),
   NewState    = lists:keyreplace(available_services, 1, State, {available_services, NewServices}),
 
   {ok, undefined, State}.
 
-change_service_tier(ServiceId, NewTier, State) ->
+change_subscription(ServiceId, NewTier, State) ->
   bedrock_security:must_be_at_least(developer, State),
   Identity              = p:identity(State),
   {ok, [NewConstraint]} = bedrock_pg:find(<<"constraints">>, <<"service_id = $1 AND tier = $2">>, [ServiceId, NewTier]),

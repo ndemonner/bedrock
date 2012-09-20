@@ -48,7 +48,6 @@ sign_in(Credentials, State) ->
 sign_out(State) ->
   bedrock_security:must_be_associated(State),
 
-  Person = p:identity(State),
   State1 = proplists:delete(identity, State),
   State2 = proplists:delete(role, State1),
 
@@ -65,11 +64,11 @@ delete(State) ->
 
   Identity = p:identity(State),
   Id = p:id(Identity),
-  {ok, undefined, NewState} = sign_out(State),
 
+  bedrock_object_interface:delete_all_by_user(Id, State),
   bedrock_pg:delete(<<"users">>, Id),
-  bedrock_riak:delete_objects_by_user(Id),
 
+  {ok, undefined, NewState} = sign_out(State),
   {ok, undefined, NewState}.
 
 establish_identity(Key, State) ->

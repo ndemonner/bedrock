@@ -11,7 +11,8 @@
   all/2,
   one/2,
   all_by_user/2,
-  all_by_user_with_category/3
+  all_by_user_with_category/3,
+  delete_all_by_user/2
 ]).
 
 create(Category, Attributes, State) ->
@@ -20,7 +21,7 @@ create(Category, Attributes, State) ->
   AppId = p:app(State),
   ObjectId = bedrock_security:generate_uuid(),
 
-  Time = unix_now(),
+  Time = bedrock_metrics:unix_now(),
 
   Object = [
     {<<"id">>, ObjectId},
@@ -43,7 +44,7 @@ create(Category, Attributes, State) ->
     <<"category">>, Category,
     <<"application_id">>, AppId,
     <<"created">>, Time,
-    <<"updated">>, Time,
+    <<"updated">>, Time
   ]),
   AttrList = lists:flatten([[K,V]||{K,V} <- Attributes]),
   bedrock_redis:hmset(Worker, key(<<"attributes">>, ObjectId), AttrList),
@@ -60,16 +61,16 @@ create(Category, Attributes, State) ->
       [{<<"user_id">>, UserId}|Object]
   end,
 
-  % Increment the applicaiton-keyd object count
+  % Increment the application-scoped object count
   Counter = list_to_binary(io_lib:format("_internal.counters.objects.~w", [AppId])),
-  bedrock_metrics:increment_counter_without_message(Counter).
+  bedrock_metrics:increment_counter(Counter),
 
   % Increment the time-series dependent counter
   bedrock_metrics:increment_counter_without_message(<<"_internal.counters.objects">>),
   % and the overall total object count in the system
   bedrock_metrics:increment_counter_without_message(<<"_internal.counters.objects.total">>),
 
-  bedrock_meter:adjust_usage(base, erlang:byte_size(term_to_binary(Object1))),
+  bedrock_meter:increment(<<"base">>, erlang:byte_size(term_to_binary(Object1)), AppId),
 
   {ok, Object1, State}.
 
@@ -82,7 +83,7 @@ update_attributes(Id, Changes, State) ->
   OldSize = erlang:byte_size(term_to_binary(Object)),
 
   ChangeList = lists:flatten([[K,V]||{K,V} <- Changes]),
-  bedrock_redis:hmset(Worker, key(<<"attributes">>, Id), ChangeList),
+  bedrock_redis:hmset(key(<<"attributes">>, Id), ChangeList),
 
   % Instead of reconstructing the object from Redis again (which could be costly)
   % just merge the changes into the existing object
@@ -95,7 +96,10 @@ update_attributes(Id, Changes, State) ->
   NewSize = erlang:byte_size(term_to_binary(UpdatedObject)),
 
   SizeChange = NewSize - OldSize,
-  bedrock_meter:adjust_usage(base, SizeChange),
+  case SizeChange >= 0 of
+    true  -> bedrock_meter:increment(<<"base">>, SizeChange, p:app(State));
+    false -> bedrock_meter:decrement(<<"base">>, -SizeChange, p:app(State))
+  end,
 
   {ok, UpdatedObject, State}.
 
@@ -108,11 +112,11 @@ delete(Id, State) ->
   destroy_object(Object),
 
   Counter = list_to_binary(io_lib:format("_internal.counters.objects.~w", [p:app(State)])),
-  bedrock_metrics:decrement_counter_without_message(Counter).
+  bedrock_metrics:decrement_counter(Counter),
 
   bedrock_metrics:decrement_counter_without_message(<<"_internal.counters.objects.total">>),
 
-  bedrock_meter:adjust_usage(base, -(erlang:byte_size(term_to_binary(Object)))),
+  bedrock_meter:decrement(<<"base">>, erlang:byte_size(term_to_binary(Object)), p:app(State)),
 
   {ok, undefined, State}.
 
@@ -124,7 +128,7 @@ remove_reader(UserId, ObjectId, State) ->
 
   bedrock_redis:srem(key(<<"readers">>, ObjectId), UserId),
 
-  bedrock_meter:adjust_usage(base, -(erlang:byte_size(term_to_binary(UserId)))),
+  bedrock_meter:decrement(<<"base">>, erlang:byte_size(term_to_binary(UserId)), p:app(State)),
 
   {ok, undefined, State}.
 
@@ -136,7 +140,7 @@ remove_writer(UserId, ObjectId, State) ->
 
   bedrock_redis:srem(key(<<"writers">>, ObjectId), UserId),
 
-  bedrock_meter:adjust_usage(base, -(erlang:byte_size(term_to_binary(UserId)))),
+  bedrock_meter:decrement(<<"base">>, erlang:byte_size(term_to_binary(UserId)), p:app(State)),
 
   {ok, undefined, State}.
 
@@ -148,7 +152,7 @@ add_reader(UserId, ObjectId, State) ->
 
   bedrock_redis:sadd(key(<<"readers">>, ObjectId), UserId),
 
-  bedrock_meter:adjust_usage(base, erlang:byte_size(term_to_binary(UserId))),
+  bedrock_meter:increment(<<"base">>, erlang:byte_size(term_to_binary(UserId)), p:app(State)),
 
   {ok, undefined, State}.
 
@@ -160,11 +164,11 @@ add_writer(UserId, ObjectId, State) ->
 
   bedrock_redis:sadd(key(<<"writers">>, ObjectId), UserId),
 
-  bedrock_meter:adjust_usage(base, erlang:byte_size(term_to_binary(UserId))),
+  bedrock_meter:increment(<<"base">>, erlang:byte_size(term_to_binary(UserId)), p:app(State)),
 
   {ok, undefined, State}.
 
-get(Id, State) ->
+get(ObjectId, State) ->
   bedrock_security:must_be_associated(State),
 
   Object = construct_object(ObjectId),
@@ -188,7 +192,7 @@ all(Category, State) ->
 one(Category, State) ->
   bedrock_security:must_be_associated(State),
 
-  Id = bedrock_redis:srandmember(key(Category, p:app(State))),
+  ObjectId = bedrock_redis:srandmember(key(Category, p:app(State))),
 
   Object = construct_object(ObjectId),
   bedrock_security:must_be_able_to_read(Object, State),
@@ -199,7 +203,7 @@ all_by_user(Id, State) ->
   bedrock_security:must_be_associated(State),
 
   UserKey = key(<<"objects">>, Id),
-  Ids = bedrock_redis:smembers(UserKey)),
+  Ids = bedrock_redis:smembers(UserKey),
   
   Objects = lists:map(fun(ObjectId) -> 
     Object = construct_object(ObjectId),
@@ -209,13 +213,37 @@ all_by_user(Id, State) ->
 
   {ok, Objects, State}.
 
-all_by_user_with_category(Id, Category, State) ->
+delete_all_by_user(Id, State) ->
+  bedrock_security:must_be_associated(State),
+
+  UserKey = key(<<"objects">>, Id),
+  Ids = bedrock_redis:smembers(UserKey),
+  
+  lists:foreach(fun(ObjectId) -> 
+    delete(ObjectId, State)
+  end, Ids),
+
+  {ok, undefined, State}.
+
+delete_all_by_application(Id, State) ->
+  bedrock_security:must_be_associated(State),
+
+  UserKey = key(<<"objects">>, Id),
+  Ids = bedrock_redis:smembers(UserKey),
+  
+  lists:foreach(fun(ObjectId) -> 
+    delete(ObjectId, State)
+  end, Ids),
+
+  {ok, undefined, State}.
+
+all_by_user_with_category(UserId, Category, State) ->
   bedrock_security:must_be_associated(State),
 
   CategoryKey = key(Category, p:app(State)),
   UserAndCatKey = key(CategoryKey, UserId),
 
-  Ids = bedrock_redis:smembers(UserAndCatKey)),
+  Ids = bedrock_redis:smembers(UserAndCatKey),
   
   Objects = lists:map(fun(ObjectId) -> 
     Object = construct_object(ObjectId),
@@ -233,8 +261,8 @@ construct_object(Id) ->
   Attrs = to_proplist(bedrock_redis:hgetall(key(<<"attributes">>, Id))),
   [
     {<<"attributes">>, Attrs},
-    {<<"readers">>, bedrock_redis:smembers(key(<<"readers">>))},
-    {<<"writers">>, bedrock_redis:smembers(key(<<"writers">>))}
+    {<<"readers">>, bedrock_redis:smembers(key(<<"readers">>, Id))},
+    {<<"writers">>, bedrock_redis:smembers(key(<<"writers">>, Id))}
     |Core
   ].
 
