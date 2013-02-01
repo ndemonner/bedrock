@@ -46,9 +46,10 @@ collect_metrics() ->
     Metrics = bedrock_metrics:get_then_reset_counter_value(MetricCounter),
     bedrock_metrics:add_time_series_value(MetricTS, Metrics / collection_interval()),
 
-    bedrock_redis:publish(<<"_internal.series.responses-changed">>, <<"">>)
-  end),
-  timer:apply_after(collection_interval() * 1000, ?MODULE, collect_metrics, []).
+    bedrock_redis:publish(<<"_internal.series.responses-changed">>, <<"">>),
+
+    timer:apply_after(collection_interval() * 1000, ?MODULE, collect_metrics, [])
+  end).
 
 collection_interval() -> 10.
 

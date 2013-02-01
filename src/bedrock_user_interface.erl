@@ -40,7 +40,7 @@ sign_in(Credentials, State) ->
       IdentityTup = {identity, Person},
       RoleTup     = {role, user},
       KeyTup      = {key, Key},
-
+      
       {ok, Reply, [IdentityTup, RoleTup, KeyTup | State]};
     error -> {error, <<"You must enter a valid set of credentials.">>, State}
   end.
@@ -57,7 +57,16 @@ sign_out(State) ->
   {ok, undefined, State3}.
 
 update(Changes, State) ->
-  undefined.
+  Changes1 = case proplists:get_value(<<"password">>, Changes) of
+    undefined -> Changes;
+    NewPass   -> 
+      HashedPass = {<<"password">>, bedrock_security:hash(NewPass)},
+      lists:keyreplace(<<"password">>, 1, Changes, HashedPass)
+  end,
+
+  {ok, UpdatedUser} = bedrock_pg:update(<<"users">>, p:id(p:identity(State)), Changes1),
+  NewState = lists:keyreplace(identity, 1, State, {identity, UpdatedUser}),
+  {ok, UpdatedUser, NewState}.
 
 delete(State) ->
   bedrock_security:must_be_associated(State),

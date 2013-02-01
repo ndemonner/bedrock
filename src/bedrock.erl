@@ -3,12 +3,14 @@
 
 start() ->
   application:start(crypto),
+  application:start(public_key),
+  application:start(ssl),
   application:start(bcrypt),
-  application:start(hackney),
   application:start(bedrock).
 
 stop() ->
   application:stop(bedrock),
-  application:stop(hackney),
   application:stop(bcrypt),
+  application:stop(ssl),
+  application:stop(public_key),
   application:stop(crypto).

@@ -47,20 +47,25 @@ reset(Name) ->
   bedrock_redis:delete(Name).
 
 increment_counter(Name) ->
-  bedrock_redis:incr(Name),
-  bedrock_redis:publish(changed(Name), bedrock_redis:get(Name)).
+  Val = bedrock_redis:incr(Name),
+  bedrock_redis:publish(changed(Name), bedrock_redis:get(Name)),
+  Val.
 
 increment_counter(Name, Amount) ->
-  bedrock_redis:incrby(Name, Amount),
-  bedrock_redis:publish(changed(Name), bedrock_redis:get(Name)).
+  Val = bedrock_redis:incrby(Name, Amount),
+  bedrock_redis:publish(changed(Name), bedrock_redis:get(Name)),
+  % lager:info("Publishing: ~p", [changed(Name)]),
+  Val.
 
 decrement_counter(Name) ->
-  bedrock_redis:decr(Name),
-  bedrock_redis:publish(changed(Name), bedrock_redis:get(Name)).
+  Val = bedrock_redis:decr(Name),
+  bedrock_redis:publish(changed(Name), bedrock_redis:get(Name)),
+  Val.
 
 decrement_counter(Name, Amount) ->
-  bedrock_redis:decrby(Name, Amount),
-  bedrock_redis:publish(changed(Name), bedrock_redis:get(Name)).
+  Val = bedrock_redis:decrby(Name, Amount),
+  bedrock_redis:publish(changed(Name), bedrock_redis:get(Name)),
+  Val.
 
 increment_counter_without_message(Name) ->
   bedrock_redis:incr(Name).

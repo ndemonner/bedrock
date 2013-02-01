@@ -47,7 +47,7 @@ CREATE TABLE applications (
   UNIQUE (name, developer_id)
 );
 CREATE INDEX applications_developer_id_index ON applications USING hash (developer_id);
-CREATE INDEX applications_appid_index ON applications USING hash (appid);
+CREATE INDEX applications_appkey_index ON applications USING hash (appkey);
 -----------------------------------------------------------------------------------------------------
 -- /APPLICATIONS ------------------------------------------------------------------------------------
 -----------------------------------------------------------------------------------------------------

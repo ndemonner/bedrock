@@ -23,10 +23,10 @@ identify(admin, Key) ->
   identify(<<"administrators">>, Key);
 
 identify(developer, Key) ->
-  identify(<<"administrators">>, Key);
+  identify(<<"developers">>, Key);
 
 identify(user, Key) ->
-  identify(<<"administrators">>, Key);
+  identify(<<"users">>, Key);
 
 identify(PersonType, [{<<"email">>, Email}, {<<"password">>, Password}]) ->
   identify(PersonType, Email, Password);
@@ -202,8 +202,9 @@ must_have_access_to(channel, Target, State) ->
 must_have_service(Service, State) ->
   Services = proplists:get_value(available_services, State),
   case Services of
-    ['*'] -> ok;
-    _List -> case lists:member(Service, Services) of
+    ['*']     -> ok;
+    undefined -> throw(unavailable);
+    _List     -> case lists:member(Service, Services) of
       true  -> ok;
       false -> throw(unavailable)
     end
@@ -313,7 +314,7 @@ authenticate(Person, Password) ->
   {ok, Hash} =:= bcrypt:hashpw(Password, Hash).
 
 accessible(Channel, Role) ->
-  case lists:is_member(Channel, [C || {C, _} <- protected_channels()]) of
+  case lists:member(Channel, [C || {C, _} <- protected_channels()]) of
     true  -> 
       case proplists:get_value(Channel) of
         admin        -> throw(protected);

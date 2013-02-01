@@ -7,3 +7,4 @@ ebin
 *.beam
 *.plt
 test-client/node_modules
+priv/ssl

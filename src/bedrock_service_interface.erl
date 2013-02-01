@@ -1,9 +1,14 @@
 -module (bedrock_service_interface).
 -export ([
   retrieve_all/1,
+  get_all/1,
+  get/2,
+  get_constraint/2,
   tiers/2,
+  constraints/2,
   subscriber_count/2,
   tier_subscriber_count/2,
+  constraint_subscriber_count/2,
   set_testing/3,
   create/2,
   update/3,
@@ -13,16 +18,30 @@
   update_tier/3
 ]).
 
-retrieve_all(State) ->
+get_all(State) ->
   {ok, Services} = bedrock_pg:get_all(<<"services">>, <<"ORDER BY id ASC">>),
   {ok, Services, State}.
 
-tiers(ServiceId, State) ->
+retrieve_all(State) ->
+  get_all(State).
+
+get(Id, State) ->
+  {ok, Service}  = bedrock_pg:get(<<"services">>, Id),
+  {ok, Service, State}.
+
+get_constraint(ConstraintId, State) ->
+  {ok, Constraint}  = bedrock_pg:get(<<"constraints">>, ConstraintId),
+  {ok, Constraint, State}.
+
+constraints(ServiceId, State) ->
   Where = <<"service_id = $1">>,
   Params = [ServiceId],
   Conditions = <<"ORDER BY tier ASC">>,
-  {ok, Tiers} = bedrock_pg:find(<<"constraints">>, Where, Params, Conditions),
-  {ok, Tiers, State}.
+  {ok, Constraints} = bedrock_pg:find(<<"constraints">>, Where, Params, Conditions),
+  {ok, Constraints, State}.
+
+tiers(ServiceId, State) ->
+  constraints(ServiceId, State). 
 
 subscriber_count(ServiceId, State) ->
   bedrock_security:must_be_at_least(admin, State),
@@ -32,13 +51,16 @@ subscriber_count(ServiceId, State) ->
   {ok, Count} = bedrock_pg:count_where(<<"subscriptions, constraints">>, Where, Params),
   {ok, Count, State}.
 
-tier_subscriber_count(TierId, State) ->
+constraint_subscriber_count(ConstraintId, State) ->
   bedrock_security:must_be_at_least(admin, State),
 
   Where = <<"subscriptions.constraint_id = $1">>,
-  Params = [TierId],
+  Params = [ConstraintId],
   {ok, Count} = bedrock_pg:count_where(<<"subscriptions">>, Where, Params),
   {ok, Count, State}.
+
+tier_subscriber_count(ConstraintId, State) ->
+  constraint_subscriber_count(ConstraintId, State).
 
 set_testing(ServiceId, Bool, State) ->
   bedrock_security:must_be_at_least(admin, State),

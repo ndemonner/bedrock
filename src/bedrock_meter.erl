@@ -50,18 +50,17 @@ handle_cast({increment, ServiceName, Amount, AppId}, State) ->
   {ok, Application} = bedrock_pg:get(<<"applications">>, AppId),
   DevId = proplists:get_value(<<"developer_id">>, Application),
 
-  Counter = list_to_binary(io_lib:format("developer.usage.~w", [DevId])),
-  bedrock_metrics:increment_counter(Counter, Amount),
+  Counter = list_to_binary(io_lib:format("developer.~w.usage.~w", [DevId, ServiceId])),
+  Usage = bedrock_metrics:increment_counter(Counter, Amount),
 
   % Check to see if they've gone over their capacity for this subscription
-  Where = <<"service_id = $1 AND developer_id = $2">>,
-  Params = [ServiceId, DevId],
-  {ok, [Sub]} = bedrock_pg:find(<<"subscriptions">>, Where, Params),
-  ConstraintId = proplists:get_value(<<"constraint_id">>, Sub),
+  Where            = <<"service_id = $1 AND developer_id = $2">>,
+  Params           = [ServiceId, DevId],
+  {ok, [Sub]}      = bedrock_pg:find(<<"subscriptions">>, Where, Params),
+  ConstraintId     = proplists:get_value(<<"constraint_id">>, Sub),
   {ok, Constraint} = bedrock_pg:get(<<"constraints">>, ConstraintId),
 
   Capacity = proplists:get_value(<<"capacity">>, Constraint),
-  Usage = bedrock_metrics:get_counter_value(Counter),
 
   case Usage > Capacity of
     false -> ok;
@@ -73,14 +72,14 @@ handle_cast({increment, ServiceName, Amount, AppId}, State) ->
   {noreply, State};
 
 handle_cast({decrement, ServiceName, Amount, AppId}, State) ->
-  ServiceName = atom_to_binary(ServiceName, utf8),
+  ServiceName     = atom_to_binary(ServiceName, utf8),
   {ok, [Service]} = bedrock_pg:find(<<"services">>, <<"name = $1">>, [ServiceName]),
-  ServiceId = p:id(Service),
+  ServiceId       = p:id(Service),
 
   {ok, Application} = bedrock_pg:get(<<"applications">>, AppId),
-  DevId = proplists:get_value(<<"developer_id">>, Application),
-
-  Counter = list_to_binary(io_lib:format("developer.~w.usage", [DevId])),
+  
+  DevId   = proplists:get_value(<<"developer_id">>, Application),
+  Counter = list_to_binary(io_lib:format("developer.~w.usage.~w", [DevId, ServiceId])),
   bedrock_metrics:decrement_counter(Counter, Amount),
 
   {noreply, State};  

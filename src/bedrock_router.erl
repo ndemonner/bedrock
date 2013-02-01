@@ -87,7 +87,7 @@ route(RPC, State) ->
   [{service, Module}, {method, Method}, {args, Args}] = RPC,
   Interface = list_to_atom("bedrock_"++Module++"_interface"),
   Function  = list_to_atom(Method),
-  Params    = [maybe_proplist(Arg) || Arg <- Args]++[State],
+  Params    = [maybe_unwrap(Arg) || Arg <- Args]++[State],
   try erlang:apply(Interface, Function, Params) of
     Anything -> Anything
   catch
@@ -121,7 +121,7 @@ unassociated_message() ->
   <<"The current connection has not been associated with any application. This must be done before this call can succeed.">>.
 
 unavailable_message() ->
-  <<"You have not added this add-on service to your account.">>.
+  <<"You cannot use this service until you subscribe to it.">>.
 
 requires_key_message(Id) ->
   {ok, Service} = bedrock_pg:get(<<"services">>, Id),
@@ -135,11 +135,12 @@ undefined_message(Undefined) ->
 conflict_message({K, V}) ->
   list_to_binary(io_lib:format("The ~s '~s' has already been used.", [K, V])).
 
-maybe_proplist(Arg) ->
+maybe_unwrap(Arg) ->
   case Arg of
-    {[{_,_}|_]} -> {RealArg} = Arg, RealArg;
-    {[]}        -> [];
-    _           -> Arg
+    {[{_,_}|_]}            -> {RealArg} = Arg, [{K, maybe_unwrap(V)} || {K,V} <- RealArg];
+    {[]}                   -> [];
+    List when is_list(Arg) -> [maybe_unwrap(Thing) || Thing <- List];
+    _                      -> Arg
   end.
 
 maybe_wrap([{_,_}|_] = Thing)  -> {[maybe_wrap(Tuple) || Tuple <- Thing]};

@@ -3,6 +3,9 @@
 -export([websocket_init/3, websocket_handle/3,
   websocket_info/3, websocket_terminate/3]).
 
+init({ssl, http}, _Req, _Opts) ->
+  {upgrade, protocol, cowboy_http_websocket};
+
 init({tcp, http}, _Req, _Opts) ->
   {upgrade, protocol, cowboy_http_websocket}.
 
@@ -31,6 +34,7 @@ websocket_info({message, Channel, Message, _Pid}, Req, State) ->
   PSClient = proplists:get_value(pubsub_client, State),
   eredis_sub:ack_message(PSClient),
   Term = binary_to_term(Message),
+  % lager:info("Sending message to channel: ~p, ~p", [Term, Channel]),
   {ok, Packed} = msgpack:pack([2, Channel, maybe_wrap(Term)]),
   {reply, {binary, Packed}, Req, State, hibernate};
 
@@ -55,6 +59,15 @@ websocket_info(Msg, Req, State) ->
 
 websocket_terminate(_Reason, _Req, State) ->
   bedrock_metrics:decrement_counter(<<"_internal.counters.connections">>),
+
+  % If they're associated with an app, decrement its connections counter
+  case p:app(State) of
+    undefined -> ok;
+    AppId     ->
+      DevId = p:dev(State),
+      Counter = p:format("developer.~w.application.~w.connections", [DevId, AppId]),
+      bedrock_metrics:decrement_counter(Counter)
+  end,
 
   % If they have an identity, publish that they've signed-off
   case p:identity(State) of

@@ -118,17 +118,17 @@ scope(Name, State) ->
   case Role of
     admin       -> Name;
     developer   -> 
-      list_to_binary(io_lib:format("developer.~s.~s", [Id, Name]));
+      list_to_binary(io_lib:format("developer.~w.~s", [Id, Name]));
     application -> 
-      list_to_binary(io_lib:format("application.~s.~s", [Id, Name]));    
+      list_to_binary(io_lib:format("application.~w.~s", [Id, Name]));    
     user        -> 
-      list_to_binary(io_lib:format("user.~s.~s", [Id, Name]));
+      list_to_binary(io_lib:format("user.~w.~s", [Id, Name]));
     undefined   ->
       case proplists:get_value(application, State) of
         undefined   -> throw(unauthorized);
         Application -> 
           AppId = proplists:get_value(<<"id">>, Application),
-          list_to_binary(io_lib:format("application.~s.~s", [AppId, Name]))
+          list_to_binary(io_lib:format("application.~w.~s", [AppId, Name]))
       end
   end.
 
