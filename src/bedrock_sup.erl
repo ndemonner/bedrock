@@ -30,26 +30,15 @@ init([]) ->
         poolboy:child_spec(Name, PoolArgs, WorkerArgs)
     end, Pools),
 
-  Dispatch = [
+  Dispatch = cowboy_router:compile([
     {'_', [
         {'_', bedrock_handler, []}
     ]}
-  ],
+  ]),
 
-  CowboyTCP = cowboy:child_spec(bedrock_cowboy_tcp, 100,
-    cowboy_tcp_transport, [
-      {port, 8080}
-    ],
-    cowboy_http_protocol, [{dispatch, Dispatch}, {log, "bedrock_cowboy.log"}]
-  ),
-  CowboyTLS = cowboy:child_spec(bedrock_cowboy_tls, 100,
-    cowboy_ssl_transport, [
-      {port, 8443}, 
-      {certfile, "priv/ssl/cert.crt"},
-      {cacertfile, "priv/ssl/cacert.crt"},
-      {keyfile, "priv/ssl/key.pem"}
-    ],
-    cowboy_http_protocol, [{dispatch, Dispatch}, {log, "bedrock_cowboy.log"}]
+  cowboy:start_http(bedorck_http_listener, 100,
+    [{port, 8080}],
+    [{env, [{dispatch, Dispatch}]}]
   ),
 
-  {ok, { {one_for_one, 5, 10}, [CowboyTCP, CowboyTLS|PoolSpecs]} }.
+  {ok, { {one_for_one, 5, 10}, [PoolSpecs]} }.
