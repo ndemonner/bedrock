@@ -6,4 +6,4 @@ a blazingly fast pub/sub architecture and MsgPack-based RPC system I custom wrot
 Erlang. Bedrock also has a decent metric aggregation suite for performing statistical
 analysis across an arbitrary set of metrics/events submitted by game clients.
 
-It was tested succesfully with the hit game Blast Monkeys--over 200,000 concurrent connections were handled at its peak..
+It was tested successfully with the hit game Blast Monkeys--over 200,000 concurrent connections were handled at its peak..
